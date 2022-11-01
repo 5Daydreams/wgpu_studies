@@ -1,27 +1,37 @@
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
-    @location(1) color: vec3<f32>,
+    @location(1) tex_coords: vec2<f32>,
 };
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
-    @location(0) color: vec3<f32>,
-};
+    @location(0) tex_coords: vec2<f32>,
+}
 
 @vertex
 fn vs_main(
     v_input: VertexInput,
 ) -> VertexOutput {
     var v_out: VertexOutput;
-    v_out.color = v_input.color;
+    v_out.tex_coords = v_input.tex_coords;
     v_out.clip_position = vec4<f32>(v_input.position, 1.0);
     return v_out;
 }
 
+// Fragment shader
+
+@group(0) @binding(0)
+var t_diffuse: texture_2d<f32>;
+@group(0) @binding(1)
+var s_diffuse: sampler;
+
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(in.color, 1.0);
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> 
+{
+    // Note!!!!!!!!!!!!!!!!!
+    // I had to multiply by (1, -1) because I'm too lazy to do this in CPU code, lmao
+    return textureSample(t_diffuse, s_diffuse, in.tex_coords * vec2<f32>(1.,-1.));
 }
  
 /* 
