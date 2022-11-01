@@ -1,9 +1,18 @@
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [package]
 name = "wgpu_studies"
 version = "0.1.0"
+authors = ["Nelson Kossuga <nelsonkossuga@gmail.com>"]
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+# Used for web support - requires folder setups, I think
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "something_that_you_make_up"
+path = "src/main.rs"
 
 [dependencies]
 cfg-if = "1"
@@ -25,7 +34,3 @@ web-sys = { version = "0.3", features = [
     "Element",
 ]}
 
-
-# Used for web support - requires folder setups, I think
-[lib]
-crate-type = ["cdylib", "rlib"]
