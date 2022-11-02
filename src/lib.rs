@@ -199,7 +199,6 @@ struct CameraUniform {
 
 impl CameraUniform {
     fn new() -> Self {
-        use cgmath::SquareMatrix;
         Self {
             view_proj: cgmath::Matrix4::identity().into(),
         }
@@ -266,7 +265,6 @@ impl CameraController {
     }
 
     fn update_camera(&self, camera: &mut Camera) {
-        use cgmath::InnerSpace;
         let forward = camera.target - camera.eye;
         let forward_norm = forward.normalize();
         let forward_mag = forward.magnitude();
