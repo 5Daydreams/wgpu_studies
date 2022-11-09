@@ -1,3 +1,7 @@
+// For web support
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
 use wgpu::util::DeviceExt;
 use winit::{
     event::*,
@@ -7,16 +11,12 @@ use winit::{
 
 mod camera;
 mod model;
-mod stardust;
 mod resources;
+mod stardust;
 mod texture;
 use cgmath::prelude::*;
 use model::{DrawModel, Material, Vertex};
 use texture::Texture;
-
-// For web support
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -29,7 +29,7 @@ struct LightUniform {
     _padding2: u32,
 }
 
-const NUM_INSTANCES_PER_ROW: u32 = 10;
+const NUM_INSTANCES_PER_ROW: u32 = 1;
 
 struct Instance {
     position: cgmath::Vector3<f32>,
@@ -53,6 +53,7 @@ struct InstanceRaw {
     model: [[f32; 4]; 4],
     normal: [[f32; 3]; 3],
 }
+
 impl model::Vertex for InstanceRaw {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         use std::mem;
@@ -684,7 +685,6 @@ impl State {
 // For web support
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub async fn run() {
-    // This checks for running the web logger or desktop logger
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -722,41 +722,57 @@ pub async fn run() {
     let mut state = State::new(&window).await;
     let mut last_render_time = instant::Instant::now();
 
+
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Poll;
+        *control_flow = ControlFlow::Poll;    
+        
+        /*
+        pub enum ControlFlow
+        {
+            Poll, // Always continue the thread
+            Wait, // Wait for a new event to continue the thread
+            WaitUntil(Instant), // Wait for either a new event or a timer to continue the thread
+            ExitWithCode(i32), // Leave the loop by firing a Event::LoopDestroyed
+        }
+        */
+
         match event {
-            Event::MainEventsCleared => window.request_redraw(),
-            Event::DeviceEvent {
-                event: DeviceEvent::MouseMotion{ delta, },
-                .. // We're not using device_id currently
-            } => if state.mouse_pressed {
-                state.camera_controller.process_mouse(delta.0, delta.1)
-            }
+            Event::NewEvents(..) => (),
             Event::WindowEvent {
                 ref event,
                 window_id,
-            } if window_id == window.id() && !state.input(event) => {
-                match event {
-                    #[cfg(not(target_arch="wasm32"))]
-                    WindowEvent::CloseRequested
-                    | WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                virtual_keycode: Some(VirtualKeyCode::Escape),
-                                ..
-                            },
+            } if window_id == window.id() && !state.input(event) => match event {
+                #[cfg(not(target_arch = "wasm32"))]
+                WindowEvent::CloseRequested
+                | WindowEvent::KeyboardInput {
+                    input:
+                    KeyboardInput {
+                        state: ElementState::Pressed,
+                        virtual_keycode: Some(VirtualKeyCode::Escape),
                         ..
-                    } => *control_flow = ControlFlow::Exit,
-                    WindowEvent::Resized(physical_size) => {
-                        state.resize(*physical_size);
-                    }
-                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                        state.resize(**new_inner_size);
-                    }
-                    _ => {}
+                    },
+                    ..
+                } => *control_flow = ControlFlow::Exit,
+                WindowEvent::Resized(physical_size) => {
+                    state.resize(*physical_size);
+                }
+                WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                    state.resize(**new_inner_size);
+                }
+                _ => {}
+            },
+            Event::DeviceEvent {
+                event: DeviceEvent::MouseMotion { delta },
+                .. /* We're not using device_id currently */
+            } => {
+                if state.mouse_pressed {
+                    state.camera_controller.process_mouse(delta.0, delta.1)
                 }
             }
+            Event::UserEvent(..) => (),
+            Event::Suspended => (),
+            Event::Resumed => (),
+            Event::MainEventsCleared => window.request_redraw(),   
             Event::RedrawRequested(window_id) if window_id == window.id() => {
                 let now = instant::Instant::now();
                 let dt = now - last_render_time;
@@ -765,13 +781,17 @@ pub async fn run() {
                 match state.render() {
                     Ok(_) => {}
                     // Reconfigure the surface if it's lost or outdated
-                    Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => state.resize(state.size),
+                    Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+                        state.resize(state.size)
+                    }
                     // The system is out of memory, we should probably quit
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                     // We're ignoring timeouts
                     Err(wgpu::SurfaceError::Timeout) => log::warn!("Surface timeout"),
                 }
             }
+            Event::RedrawEventsCleared=> (),
+            Event::LoopDestroyed => (),
             _ => {}
         }
     });
