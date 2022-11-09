@@ -7,6 +7,7 @@ use winit::{
 
 mod camera;
 mod model;
+mod stardust;
 mod resources;
 mod texture;
 use cgmath::prelude::*;
@@ -360,7 +361,7 @@ impl State {
             label: None,
         });
 
-        const SPACE_BETWEEN: f32 = 3.0;
+        const SPACE_BETWEEN: f32 = 5.0;
         let instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|z| {
                 // try removing 'move' from |x| later
@@ -427,7 +428,7 @@ impl State {
         // load_model now handles the vertex buffers, index buffers and texturing
         log::warn!("Load model");
         let obj_model =
-            resources::load_model("cube.obj", &device, &queue, &texture_bind_group_layout)
+            resources::load_model("Suzanne.obj", &device, &queue, &texture_bind_group_layout)
                 .await
                 .unwrap();
 
