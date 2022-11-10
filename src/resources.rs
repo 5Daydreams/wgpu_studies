@@ -57,7 +57,6 @@ pub async fn load_binary(file_name: &str) -> anyhow::Result<Vec<u8>> {
     Ok(data)
 }
 
-
 pub async fn load_texture(
     file_name: &str,
     is_normal_map: bool,
@@ -96,7 +95,6 @@ pub async fn load_model(
     for m in obj_materials? {
         let diffuse_texture = load_texture(&m.diffuse_texture, false, device, queue).await?;
         let normal_texture = load_texture(&m.normal_texture, true, device, queue).await?;
-
 
         materials.push(model::Material::new(
             device,
@@ -199,6 +197,7 @@ pub async fn load_model(
                 contents: bytemuck::cast_slice(&vertices),
                 usage: wgpu::BufferUsages::VERTEX,
             });
+
             let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(&format!("{:?} Index Buffer", file_name)),
                 contents: bytemuck::cast_slice(&m.mesh.indices),

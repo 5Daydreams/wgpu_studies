@@ -95,8 +95,6 @@ var s_normal: sampler;
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> 
 {
-    // Note!!!!!!!!!!!!!!!!!
-    // I had to multiply by (1, -1) because I'm too lazy to do this in CPU code, lmao
     let object_color: vec4<f32> = textureSample(t_diffuse, s_diffuse, in.tex_coords);
     let object_normal: vec4<f32> = textureSample(t_normal, s_normal, in.tex_coords );
 

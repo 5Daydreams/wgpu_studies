@@ -2,7 +2,7 @@
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt};
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -29,7 +29,7 @@ struct LightUniform {
     _padding2: u32,
 }
 
-const NUM_INSTANCES_PER_ROW: u32 = 1;
+const NUM_INSTANCES_PER_ROW: u32 = 10;
 
 struct Instance {
     position: cgmath::Vector3<f32>,
@@ -208,13 +208,12 @@ fn create_render_pipeline(
     })
 }
 
-#[allow(dead_code, unused_variables)]
 impl State {
-    // Creating some of the wgpu types requires async code
+    // Note that creating some of the wgpu types requires async code
     async fn new(window: &Window) -> Self {
-        let size = window.inner_size();
-
+        
         log::warn!("WGPU setup");
+        let size = window.inner_size();
         // The instance is a temporary variable - used to access the
         // Adapter and Surface classes
         let instance = wgpu::Instance::new(wgpu::Backends::all());
@@ -232,7 +231,7 @@ impl State {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    label: None,
+                    label: Some("Device Name"),
                     // This is related exclusively to extra features,
                     // not base-level features for the rendering
                     // See more here: https://docs.rs/wgpu/latest/wgpu/struct.Features.html
@@ -433,11 +432,6 @@ impl State {
                 .await
                 .unwrap();
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Cubes Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-        });
-
         let depth_texture =
             texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
@@ -540,14 +534,13 @@ impl State {
             instances,
             instance_buffer,
             depth_texture,
-            #[allow(dead_code)]
             debug_material,
         }
     }
 
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
-        // Repeat the configuration done by the constructor for size, config.size and surface
         if new_size.width > 0 && new_size.height > 0 {
+            // Repeat the configuration done by the constructor for size, config.size and surface
             self.projection.resize(new_size.width, new_size.height);
             self.size = new_size;
 
@@ -628,12 +621,11 @@ impl State {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[
-                    // This is what @location(0) in the fragment shader looks at (or not?)
+                    // This is what @location(0) in the fragment shader writes to (?)
                     Some(wgpu::RenderPassColorAttachment {
                         view: &view,
                         resolve_target: None,
                         ops: wgpu::Operations {
-                            // wgpu::LoadOP is the same as camera.ClearFlags from Unity
                             load: wgpu::LoadOp::Clear(wgpu::Color {
                                 r: 0.05,
                                 g: 0.12,
@@ -722,31 +714,21 @@ pub async fn run() {
     let mut state = State::new(&window).await;
     let mut last_render_time = instant::Instant::now();
 
-
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Poll;    
-        
-        /*
-        pub enum ControlFlow
-        {
-            Poll, // Always continue the thread
-            Wait, // Wait for a new event to continue the thread
-            WaitUntil(Instant), // Wait for either a new event or a timer to continue the thread
-            ExitWithCode(i32), // Leave the loop by firing a Event::LoopDestroyed
-        }
-        */
-
+        *control_flow = ControlFlow::Poll;
         match event {
             Event::NewEvents(..) => (),
             Event::WindowEvent {
                 ref event,
                 window_id,
-            } if window_id == window.id() && !state.input(event) => match event {
+            } 
+            if window_id == window.id() && !state.input(event) => 
+            match event {
                 #[cfg(not(target_arch = "wasm32"))]
-                WindowEvent::CloseRequested
-                | WindowEvent::KeyboardInput {
-                    input:
-                    KeyboardInput {
+                WindowEvent::CloseRequested | WindowEvent::KeyboardInput 
+                {
+                    input: KeyboardInput 
+                    {
                         state: ElementState::Pressed,
                         virtual_keycode: Some(VirtualKeyCode::Escape),
                         ..
@@ -774,10 +756,13 @@ pub async fn run() {
             Event::Resumed => (),
             Event::MainEventsCleared => window.request_redraw(),   
             Event::RedrawRequested(window_id) if window_id == window.id() => {
-                let now = instant::Instant::now();
-                let dt = now - last_render_time;
-                last_render_time = now;
+                let curr_time = instant::Instant::now();
+                let dt = curr_time - last_render_time;
+
+                last_render_time = curr_time;
                 state.update(dt);
+
+                // Notice the error handling here
                 match state.render() {
                     Ok(_) => {}
                     // Reconfigure the surface if it's lost or outdated

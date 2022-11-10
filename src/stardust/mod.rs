@@ -1,5 +1,4 @@
-use cgmath::{Vector3};
-
+use cgmath::Vector3;
 
 pub trait Curve<T> {
     fn sample_curve(
@@ -8,7 +7,7 @@ pub trait Curve<T> {
         t_value: f32,
         curve_closure: Box<dyn Fn(f32) -> f32>,
     ) -> T;
-    
+
     fn sample_lookup_table(t_value: f32, curve_closure: Box<dyn Fn(f32) -> f32>) -> f32 {
         curve_closure(t_value)
     }
