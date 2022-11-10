@@ -59,6 +59,10 @@ pub struct Material {
     pub bind_group: wgpu::BindGroup,
 }
 
+
+// if a a material contains BindGroupEntries AND their respective values - 
+// is it possible to generalize/ abstract materials such that they can fit any shader 
+// without the need to hardcode their BindGroupLayouts?
 impl Material {
     pub fn new(
         device: &wgpu::Device,
