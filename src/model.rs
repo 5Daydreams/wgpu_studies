@@ -59,9 +59,8 @@ pub struct Material {
     pub bind_group: wgpu::BindGroup,
 }
 
-
-// if a a material contains BindGroupEntries AND their respective values - 
-// is it possible to generalize/ abstract materials such that they can fit any shader 
+// if a a material contains BindGroupEntries AND their respective values -
+// is it possible to generalize/ abstract materials such that they can fit any shader
 // without the need to hardcode their BindGroupLayouts?
 impl Material {
     pub fn new(
@@ -184,6 +183,7 @@ where
         self.set_bind_group(0, &material.bind_group, &[]);
         self.set_bind_group(1, camera_bind_group, &[]);
         self.set_bind_group(2, light_bind_group, &[]);
+        // actual draw call
         self.draw_indexed(0..mesh.num_elements, 0, instances);
     }
 
@@ -289,6 +289,7 @@ where
         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         self.set_bind_group(0, camera_bind_group, &[]);
         self.set_bind_group(1, light_bind_group, &[]);
+        // actual draw call
         self.draw_indexed(0..mesh.num_elements, 0, instances);
     }
 

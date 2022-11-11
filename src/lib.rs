@@ -2,7 +2,7 @@
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use wgpu::{util::DeviceExt};
+use wgpu::util::DeviceExt;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -27,6 +27,27 @@ struct LightUniform {
     color: [f32; 3],
     // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
     _padding2: u32,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct CameraUniform {
+    view_position: [f32; 4],
+    view_proj: [[f32; 4]; 4],
+}
+
+impl CameraUniform {
+    fn new() -> Self {
+        Self {
+            view_position: [0.0; 4],
+            view_proj: cgmath::Matrix4::identity().into(),
+        }
+    }
+
+    fn update_view_proj(&mut self, camera: &camera::Camera, projection: &camera::Projection) {
+        self.view_position = camera.position.to_homogeneous().into();
+        self.view_proj = (projection.calc_matrix() * camera.calc_matrix()).into();
+    }
 }
 
 const NUM_INSTANCES_PER_ROW: u32 = 10;
@@ -104,27 +125,6 @@ impl model::Vertex for InstanceRaw {
     }
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct CameraUniform {
-    view_position: [f32; 4],
-    view_proj: [[f32; 4]; 4],
-}
-
-impl CameraUniform {
-    fn new() -> Self {
-        Self {
-            view_position: [0.0; 4],
-            view_proj: cgmath::Matrix4::identity().into(),
-        }
-    }
-
-    fn update_view_proj(&mut self, camera: &camera::Camera, projection: &camera::Projection) {
-        self.view_position = camera.position.to_homogeneous().into();
-        self.view_proj = (projection.calc_matrix() * camera.calc_matrix()).into();
-    }
-}
-
 struct State {
     camera: camera::Camera,
     projection: camera::Projection,
@@ -138,6 +138,7 @@ struct State {
     render_pipeline: wgpu::RenderPipeline,
     light_render_pipeline: wgpu::RenderPipeline,
     obj_model: model::Model,
+    light_model: model::Model,
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     light_uniform: LightUniform,
@@ -211,7 +212,6 @@ fn create_render_pipeline(
 impl State {
     // Note that creating some of the wgpu types requires async code
     async fn new(window: &Window) -> Self {
-        
         log::warn!("WGPU setup");
         let size = window.inner_size();
         // The instance is a temporary variable - used to access the
@@ -263,6 +263,8 @@ impl State {
 
         surface.configure(&device, &config);
 
+        // Note: it is PROBABLY the case where I can generalize/abstract these into tuples or something, 
+        // maybe using enums I can create an enum array that handles the abstraction of creating the layout for me
         // The following lines generate a texture view and a texture sampler for use with a Fragment shader
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -364,12 +366,14 @@ impl State {
         const SPACE_BETWEEN: f32 = 5.0;
         let instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|z| {
-                // try removing 'move' from |x| later
+                // removing the "move" keyword means the closure will not own the data from the previous scope
                 (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                    let x = SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
-                    let z = SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
 
-                    let position = cgmath::Vector3 { x, y: 0.0, z };
+                    let position = cgmath::Vector3 {
+                        x: SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0),
+                        y: 0.0,
+                        z: SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0),
+                    };
 
                     let rotation = if position.is_zero() {
                         cgmath::Quaternion::from_axis_angle(
@@ -426,9 +430,14 @@ impl State {
         });
 
         // load_model now handles the vertex buffers, index buffers and texturing
-        log::warn!("Load model");
+        log::warn!("Load models");
         let obj_model =
             resources::load_model("Suzanne.obj", &device, &queue, &texture_bind_group_layout)
+                .await
+                .unwrap();
+
+        let light_model =
+            resources::load_model("cube.obj", &device, &queue, &texture_bind_group_layout)
                 .await
                 .unwrap();
 
@@ -524,6 +533,7 @@ impl State {
             size,
             render_pipeline,
             obj_model,
+            light_model,
             camera_buffer,
             light_render_pipeline,
             light_uniform,
@@ -646,15 +656,15 @@ impl State {
                 }),
             });
 
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-
             use crate::model::DrawLight;
             render_pass.set_pipeline(&self.light_render_pipeline);
             render_pass.draw_light_model(
-                &self.obj_model,
+                &self.light_model,
                 &self.camera_bind_group,
                 &self.light_bind_group,
             );
+
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.draw_model_instanced_with_material(
@@ -721,13 +731,13 @@ pub async fn run() {
             Event::WindowEvent {
                 ref event,
                 window_id,
-            } 
-            if window_id == window.id() && !state.input(event) => 
+            }
+            if window_id == window.id() && !state.input(event) =>
             match event {
                 #[cfg(not(target_arch = "wasm32"))]
-                WindowEvent::CloseRequested | WindowEvent::KeyboardInput 
+                WindowEvent::CloseRequested | WindowEvent::KeyboardInput
                 {
-                    input: KeyboardInput 
+                    input: KeyboardInput
                     {
                         state: ElementState::Pressed,
                         virtual_keycode: Some(VirtualKeyCode::Escape),
@@ -754,7 +764,7 @@ pub async fn run() {
             Event::UserEvent(..) => (),
             Event::Suspended => (),
             Event::Resumed => (),
-            Event::MainEventsCleared => window.request_redraw(),   
+            Event::MainEventsCleared => window.request_redraw(),
             Event::RedrawRequested(window_id) if window_id == window.id() => {
                 let curr_time = instant::Instant::now();
                 let dt = curr_time - last_render_time;
