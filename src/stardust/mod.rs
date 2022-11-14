@@ -13,12 +13,9 @@ pub trait Curve<T> {
     }
 }
 
-#[allow(unused)]
 type Vec3 = Vector3<f32>;
-#[allow(unused)]
 type Colour3 = Vector3<f32>;
 
-#[allow(unused)]
 pub struct Particle {
     position: Vec3,
     velocity: Vec3,
@@ -28,6 +25,8 @@ pub struct Particle {
     // shape?
     lifetime: f32,
 }
+
+impl Particle {}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -41,7 +40,7 @@ impl QuadVertex {
     const ATTRIBS: [wgpu::VertexAttribute; 3] =
         wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32x3];
 
-    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+    pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         use std::mem;
 
         wgpu::VertexBufferLayout {
@@ -75,9 +74,9 @@ pub const QUAD_VERTS: &[QuadVertex] = &[
     },
 ];
 
-const QUAD_INDICES: &[u16] = &[0, 1, 2, 1, 3, 2];
+pub const QUAD_INDICES: &[u32] = &[0, 1, 2, 1, 3, 2];
 
-// Stolen Code here: 
+// Stolen Code here:
 /*
 
 impl Draw<Transparent2d> for DrawEffects {

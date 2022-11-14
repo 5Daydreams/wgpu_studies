@@ -152,6 +152,7 @@ struct State {
     instance_buffer: wgpu::Buffer,
     depth_texture: Texture,
     debug_material: Material,
+    quad_mesh: model::Mesh,
 }
 
 fn create_render_pipeline(
@@ -317,7 +318,7 @@ impl State {
                 label: Some("texture_bind_group_layout"),
             });
 
-        let camera = camera::Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0));
+        let camera = camera::Camera::new((0.0, 0.0, 2.0), cgmath::Deg(-90.0), cgmath::Deg(-00.0));
         let projection =
             camera::Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
         let camera_controller = camera::CameraController::new(4.0, 0.4);
@@ -460,7 +461,7 @@ impl State {
                 label: Some("Light Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("shaders/light.wgsl").into()),
             };
-            
+
             let cull_mode = Some(wgpu::Face::Back);
 
             create_render_pipeline(
@@ -470,62 +471,6 @@ impl State {
                 config.format,
                 Some(texture::Texture::DEPTH_FORMAT),
                 &[model::ModelVertex::desc()],
-                shader,
-                cull_mode,
-            )
-        };
-
-        let obj_render_pipeline = {
-            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Object Pipeline Layout"),
-                bind_group_layouts: &[
-                    &texture_bind_group_layout,
-                    &camera_bind_group_layout,
-                    &light_bind_group_layout,
-                ],
-                push_constant_ranges: &[],
-            });
-
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("Normal Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
-            };
-
-            let cull_mode = Some(wgpu::Face::Back);
-
-            create_render_pipeline(
-                Some("Object Render Pipeline"),
-                &device,
-                &layout,
-                config.format,
-                Some(texture::Texture::DEPTH_FORMAT),
-                &[model::ModelVertex::desc(), InstanceRaw::desc()],
-                shader,
-                cull_mode,
-            )
-        };
-
-        let particle_render_pipeline = {
-            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Particle Pipeline Layout"),
-                bind_group_layouts: &[&camera_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("Particle Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/particle.wgsl").into()),
-            };
-
-            let cull_mode = None;
-
-            create_render_pipeline(
-                Some("Particle Render Pipeline"),
-                &device,
-                &layout,
-                config.format,
-                Some(texture::Texture::DEPTH_FORMAT),
-                &[model::ModelVertex::desc(), InstanceRaw::desc()],
                 shader,
                 cull_mode,
             )
@@ -561,6 +506,84 @@ impl State {
             )
         };
 
+        let obj_render_pipeline = {
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Object Pipeline Layout"),
+                bind_group_layouts: &[
+                    &texture_bind_group_layout,
+                    &camera_bind_group_layout,
+                    &light_bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            });
+
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("Normal Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
+            };
+
+            let cull_mode = Some(wgpu::Face::Back);
+
+            create_render_pipeline(
+                Some("Object Render Pipeline"),
+                &device,
+                &layout,
+                config.format,
+                Some(texture::Texture::DEPTH_FORMAT),
+                &[model::ModelVertex::desc(), InstanceRaw::desc()],
+                shader,
+                cull_mode,
+            )
+        };
+
+        let quad_mesh: model::Mesh = {
+            let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(stardust::QUAD_VERTS),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+
+            let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(stardust::QUAD_INDICES),
+                usage: wgpu::BufferUsages::INDEX,
+            });
+
+            model::Mesh {
+                name: "Particle_Mesh".to_owned(),
+                vertex_buffer,
+                index_buffer,
+                num_elements: stardust::QUAD_INDICES.len() as u32,
+                material: 0,
+            }
+        };
+
+        let particle_render_pipeline = {
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Particle Pipeline Layout"),
+                bind_group_layouts: &[&camera_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("Particle Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/particle.wgsl").into()),
+            };
+
+            let cull_mode = None;
+
+            create_render_pipeline(
+                Some("Particle Render Pipeline"),
+                &device,
+                &layout,
+                config.format,
+                Some(texture::Texture::DEPTH_FORMAT),
+                &[stardust::QuadVertex::desc()],
+                shader,
+                cull_mode,
+            )
+        };
+
         Self {
             camera,
             projection,
@@ -576,7 +599,6 @@ impl State {
             light_model,
             camera_buffer,
             light_render_pipeline,
-            particle_render_pipeline,
             light_uniform,
             light_buffer,
             light_bind_group,
@@ -586,6 +608,8 @@ impl State {
             instance_buffer,
             depth_texture,
             debug_material,
+            particle_render_pipeline,
+            quad_mesh,
         }
     }
 
@@ -705,22 +729,19 @@ impl State {
                 &self.light_bind_group,
             );
 
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+            // render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.draw_model_instanced_with_material(
-                &self.obj_model,
-                &self.debug_material,
-                0..self.instances.len() as u32,
-                &self.camera_bind_group,
-                &self.light_bind_group,
-            );
+            // render_pass.set_pipeline(&self.render_pipeline);
+            // render_pass.draw_model_instanced_with_material(
+            //     &self.obj_model,
+            //     &self.debug_material,
+            //     0..self.instances.len() as u32,
+            //     &self.camera_bind_group,
+            //     &self.light_bind_group,
+            // );
 
             render_pass.set_pipeline(&self.particle_render_pipeline);
-            render_pass.draw_particle(
-                &self.obj_model,
-                &self.camera_bind_group,
-            );
+            render_pass.draw_particle(&self.quad_mesh, &self.camera_bind_group);
         }
 
         // submit will accept anything that implements IntoIter
