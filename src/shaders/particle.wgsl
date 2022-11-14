@@ -37,6 +37,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32>
     let inverse_distance: f32 = (1.0 - 2. * distance);
     let alpha_mask: f32 = step(0.01, inverse_distance);
 
+    if(alpha_mask < 0.3)
+    {
+        discard;
+    }
+
     let color = vec3<f32>(0.7, 0.7, 0.7);
 
     return vec4<f32>(alpha_mask);

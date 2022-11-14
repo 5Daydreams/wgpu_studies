@@ -1,32 +1,140 @@
-use cgmath::Vector3;
+use cgmath::{Vector3, Zero};
+use typed_builder::TypedBuilder;
 
-pub trait Curve<T> {
-    fn sample_curve(
-        start_value: T,
-        end_value: T,
+fn sample_lookup_table(t_value: f32, curve_closure: Box<dyn Fn(f32) -> f32>) -> f32 {
+    curve_closure(t_value)
+}
+
+pub const QUADRATIC_CENTERED: fn(f32) -> f32 = |x: f32| -4. * (x) * (x - 1.);
+
+pub struct Curve {
+    point_list: Vec<CurvePoint>,
+}
+
+type Colour3 = Vector3<f32>;
+type Vec3 = Vector3<f32>;
+
+impl Curve {
+    pub fn vec3_curve(
+        start_value: Vec3,
+        end_value: Vec3,
         t_value: f32,
         curve_closure: Box<dyn Fn(f32) -> f32>,
-    ) -> T;
+    ) -> Vec3 {
+        let lerp_value = sample_lookup_table(t_value, curve_closure);
 
-    fn sample_lookup_table(t_value: f32, curve_closure: Box<dyn Fn(f32) -> f32>) -> f32 {
-        curve_closure(t_value)
+        (1. - lerp_value) * start_value + (lerp_value) * end_value
+    }
+
+    pub fn float_curve(
+        start_value: f32,
+        end_value: f32,
+        t_value: f32,
+        curve_closure: Box<dyn Fn(f32) -> f32>,
+    ) -> f32 {
+        let lerp_value = sample_lookup_table(t_value, curve_closure);
+
+        (1. - lerp_value) * start_value + (lerp_value) * end_value
     }
 }
 
-type Vec3 = Vector3<f32>;
-type Colour3 = Vector3<f32>;
-
-pub struct Particle {
-    position: Vec3,
-    velocity: Vec3,
-    size: f32,
-    color: Colour3,
-    transparency: f32,
-    // shape?
-    lifetime: f32,
+pub struct CurvePoint{
+    key: f32,
+    value: f32,
 }
 
-impl Particle {}
+trait AddAssign {
+    fn add_assign(&mut self, other: Self);
+}
+
+impl AddAssign for Vec3 {
+    fn add_assign(&mut self, other: Self) {
+        *self = Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        };
+    }
+}
+
+#[derive(TypedBuilder)]
+pub struct Particle {
+    #[builder(default = Vec3::zero())]
+    curr_position: Vec3,
+    #[builder(default = Vec3::zero())]
+    curr_velocity: Vec3,
+    #[builder(default = Vec3::zero())]
+    curr_force: Vec3,
+    force_curve: Curve,
+    #[builder(default = 1.0)]
+    curr_size: f32,
+    #[builder(default = Colour3::zero())]
+    curr_color: Colour3,
+    #[builder(default = 1.0)]
+    curr_transparency: f32,
+    #[builder(default = 0.0)]
+    curr_lifetime: f32,
+    #[builder(default = 1.0)]
+    total_lifetime: f32,
+    // shape?
+}
+
+impl Particle 
+{
+    fn update(&mut self, dt: f32) {
+        self.curr_position += self.curr_velocity * dt;
+        self.curr_velocity += self.curr_force * dt;
+        self.curr_force = Vec3::zero();
+
+        self.update_curve_values();
+    }
+
+    fn update_curve_values(&mut self) {
+        let normalized_time = self.curr_lifetime / self.total_lifetime;
+
+        let quadratic_closure = QUADRATIC_CENTERED;
+
+        self.curr_position.y = quadratic_closure(normalized_time);
+    }
+
+    fn get_mesh(&self, device: wgpu::Device) -> crate::model::Mesh {
+        let vertex_buffer = wgpu::util::DeviceExt::create_buffer_init(
+            &device,
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(QUAD_VERTS),
+                usage: wgpu::BufferUsages::VERTEX,
+            },
+        );
+
+        let index_buffer = wgpu::util::DeviceExt::create_buffer_init(
+            &device,
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(QUAD_INDICES),
+                usage: wgpu::BufferUsages::INDEX,
+            },
+        );
+
+        crate::model::Mesh {
+            name: "Particle_Mesh".to_owned(),
+            vertex_buffer,
+            index_buffer,
+            num_elements: QUAD_INDICES.len() as u32,
+            material: 0,
+        }
+    }
+}
+
+trait PhysicsPoint {
+    fn apply_force(&mut self, force: Vec3);
+}
+
+impl PhysicsPoint for Particle {
+    fn apply_force(&mut self, force: Vec3) {
+        self.curr_force += force;
+    }
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]

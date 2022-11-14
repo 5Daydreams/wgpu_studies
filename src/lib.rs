@@ -15,10 +15,8 @@ mod resources;
 mod stardust;
 mod texture;
 use cgmath::prelude::*;
-use model::{DrawModel, Material, Vertex};
+use model::{Material, Vertex};
 use texture::Texture;
-
-use crate::model::DrawParticle;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -728,18 +726,20 @@ impl State {
                 &self.camera_bind_group,
                 &self.light_bind_group,
             );
-
-            // render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-
-            // render_pass.set_pipeline(&self.render_pipeline);
-            // render_pass.draw_model_instanced_with_material(
-            //     &self.obj_model,
-            //     &self.debug_material,
-            //     0..self.instances.len() as u32,
-            //     &self.camera_bind_group,
-            //     &self.light_bind_group,
-            // );
-
+            
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+            
+            use crate::model::DrawModel;
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.draw_model_instanced_with_material(
+                &self.obj_model,
+                &self.debug_material,
+                0..self.instances.len() as u32,
+                &self.camera_bind_group,
+                &self.light_bind_group,
+            );
+            
+            use crate::model::DrawParticle;
             render_pass.set_pipeline(&self.particle_render_pipeline);
             render_pass.draw_particle(&self.quad_mesh, &self.camera_bind_group);
         }
