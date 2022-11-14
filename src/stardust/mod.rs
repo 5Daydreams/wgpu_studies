@@ -7,8 +7,10 @@ fn sample_lookup_table(t_value: f32, curve_closure: Box<dyn Fn(f32) -> f32>) -> 
 
 pub const QUADRATIC_CENTERED: fn(f32) -> f32 = |x: f32| -4. * (x) * (x - 1.);
 
-pub struct Curve {
+pub struct Curve 
+{
     point_list: Vec<CurvePoint>,
+    closure: Box<fn(f32) -> f32>,
 }
 
 type Colour3 = Vector3<f32>;
@@ -92,9 +94,7 @@ impl Particle
     fn update_curve_values(&mut self) {
         let normalized_time = self.curr_lifetime / self.total_lifetime;
 
-        let quadratic_closure = QUADRATIC_CENTERED;
-
-        self.curr_position.y = quadratic_closure(normalized_time);
+        self.curr_position.y = QUADRATIC_CENTERED(normalized_time);
     }
 
     fn get_mesh(&self, device: wgpu::Device) -> crate::model::Mesh {
