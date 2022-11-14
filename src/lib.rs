@@ -18,6 +18,8 @@ use cgmath::prelude::*;
 use model::{DrawModel, Material, Vertex};
 use texture::Texture;
 
+use crate::model::DrawParticle;
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct LightUniform {
@@ -137,6 +139,7 @@ struct State {
     size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
     light_render_pipeline: wgpu::RenderPipeline,
+    particle_render_pipeline: wgpu::RenderPipeline,
     obj_model: model::Model,
     light_model: model::Model,
     camera_uniform: CameraUniform,
@@ -152,17 +155,19 @@ struct State {
 }
 
 fn create_render_pipeline(
+    label: Option<&str>,
     device: &wgpu::Device,
     layout: &wgpu::PipelineLayout,
     color_format: wgpu::TextureFormat,
     depth_format: Option<wgpu::TextureFormat>,
     vertex_layouts: &[wgpu::VertexBufferLayout],
     shader: wgpu::ShaderModuleDescriptor,
+    culling_face: Option<wgpu::Face>,
 ) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(shader);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Render Pipeline"),
+        label,
         layout: Some(layout),
         vertex: wgpu::VertexState {
             module: &shader,
@@ -185,7 +190,8 @@ fn create_render_pipeline(
             topology: wgpu::PrimitiveTopology::TriangleList,
             strip_index_format: None,
             front_face: wgpu::FrontFace::Ccw,
-            cull_mode: Some(wgpu::Face::Back),
+            cull_mode: culling_face,
+            // cull_mode: Some(culling_face.unwrap_or(None)),
             // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
             polygon_mode: wgpu::PolygonMode::Fill,
             // Requires Features::DEPTH_CLIP_CONTROL
@@ -263,7 +269,7 @@ impl State {
 
         surface.configure(&device, &config);
 
-        // Note: it is PROBABLY the case where I can generalize/abstract these into tuples or something, 
+        // Note: it is PROBABLY the case where I can generalize/abstract these into tuples or something,
         // maybe using enums I can create an enum array that handles the abstraction of creating the layout for me
         // The following lines generate a texture view and a texture sampler for use with a Fragment shader
         let texture_bind_group_layout =
@@ -368,7 +374,6 @@ impl State {
             .flat_map(|z| {
                 // removing the "move" keyword means the closure will not own the data from the previous scope
                 (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-
                     let position = cgmath::Vector3 {
                         x: SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0),
                         y: 0.0,
@@ -444,10 +449,35 @@ impl State {
         let depth_texture =
             texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
-        // (!) Binding Group _Layouts_ go here ->
-        let render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
+        let light_render_pipeline = {
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Light Pipeline Layout"),
+                bind_group_layouts: &[&camera_bind_group_layout, &light_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("Light Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/light.wgsl").into()),
+            };
+            
+            let cull_mode = Some(wgpu::Face::Back);
+
+            create_render_pipeline(
+                Some("Light Render Pipeline"),
+                &device,
+                &layout,
+                config.format,
+                Some(texture::Texture::DEPTH_FORMAT),
+                &[model::ModelVertex::desc()],
+                shader,
+                cull_mode,
+            )
+        };
+
+        let obj_render_pipeline = {
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Object Pipeline Layout"),
                 bind_group_layouts: &[
                     &texture_bind_group_layout,
                     &camera_bind_group_layout,
@@ -456,38 +486,48 @@ impl State {
                 push_constant_ranges: &[],
             });
 
-        let light_render_pipeline = {
-            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Light Pipeline Layout"),
-                bind_group_layouts: &[&camera_bind_group_layout, &light_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-            let shader = wgpu::ShaderModuleDescriptor {
-                label: Some("Light Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/light.wgsl").into()),
-            };
-            create_render_pipeline(
-                &device,
-                &layout,
-                config.format,
-                Some(texture::Texture::DEPTH_FORMAT),
-                &[model::ModelVertex::desc()],
-                shader,
-            )
-        };
-
-        let render_pipeline = {
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Normal Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
             };
+
+            let cull_mode = Some(wgpu::Face::Back);
+
             create_render_pipeline(
+                Some("Object Render Pipeline"),
                 &device,
-                &render_pipeline_layout,
+                &layout,
                 config.format,
                 Some(texture::Texture::DEPTH_FORMAT),
                 &[model::ModelVertex::desc(), InstanceRaw::desc()],
                 shader,
+                cull_mode,
+            )
+        };
+
+        let particle_render_pipeline = {
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Particle Pipeline Layout"),
+                bind_group_layouts: &[&camera_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("Particle Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/particle.wgsl").into()),
+            };
+
+            let cull_mode = None;
+
+            create_render_pipeline(
+                Some("Particle Render Pipeline"),
+                &device,
+                &layout,
+                config.format,
+                Some(texture::Texture::DEPTH_FORMAT),
+                &[model::ModelVertex::desc(), InstanceRaw::desc()],
+                shader,
+                cull_mode,
             )
         };
 
@@ -531,11 +571,12 @@ impl State {
             queue,
             config,
             size,
-            render_pipeline,
+            render_pipeline: obj_render_pipeline,
             obj_model,
             light_model,
             camera_buffer,
             light_render_pipeline,
+            particle_render_pipeline,
             light_uniform,
             light_buffer,
             light_bind_group,
@@ -673,6 +714,12 @@ impl State {
                 0..self.instances.len() as u32,
                 &self.camera_bind_group,
                 &self.light_bind_group,
+            );
+
+            render_pass.set_pipeline(&self.particle_render_pipeline);
+            render_pass.draw_particle(
+                &self.obj_model,
+                &self.camera_bind_group,
             );
         }
 
