@@ -137,7 +137,11 @@ struct State {
     size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
     light_render_pipeline: wgpu::RenderPipeline,
+    particle_single: stardust::Particle,
+    quad_mesh: model::Mesh,
     particle_render_pipeline: wgpu::RenderPipeline,
+    particle_instances: Vec<Instance>,
+    particle_instance_buffer: wgpu::Buffer,
     obj_model: model::Model,
     light_model: model::Model,
     camera_uniform: CameraUniform,
@@ -150,7 +154,6 @@ struct State {
     instance_buffer: wgpu::Buffer,
     depth_texture: Texture,
     debug_material: Material,
-    quad_mesh: model::Mesh,
 }
 
 fn create_render_pipeline(
@@ -534,27 +537,43 @@ impl State {
             )
         };
 
-        let quad_mesh: model::Mesh = {
-            let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(stardust::QUAD_VERTS),
+        use stardust::Particle;
+        let particle_single: Particle = Particle::default();
+
+        const PARTICLE_COUNT: usize = 1;
+
+        let particle_instances = (0..PARTICLE_COUNT)
+            .flat_map(|z| {
+                // removing the "move" keyword means the closure will not own the data from the previous scope
+                (0..PARTICLE_COUNT).map(move |x| {
+                    let position = cgmath::Vector3 {
+                        x: 0.0 * x as f32,
+                        y: particle_single.curr_position.y,
+                        z: 0.0 * z as f32,
+                    };
+
+                    let rotation = cgmath::Quaternion::from_axis_angle(
+                        cgmath::Vector3::unit_z(),
+                        cgmath::Deg(0.0),
+                    );
+
+                    Instance { position, rotation }
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let particle_instance_data = particle_instances
+            .iter()
+            .map(Instance::to_raw)
+            .collect::<Vec<_>>();
+        let particle_instance_buffer =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Instance Buffer"),
+                contents: bytemuck::cast_slice(&particle_instance_data),
                 usage: wgpu::BufferUsages::VERTEX,
             });
 
-            let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Index Buffer"),
-                contents: bytemuck::cast_slice(stardust::QUAD_INDICES),
-                usage: wgpu::BufferUsages::INDEX,
-            });
-
-            model::Mesh {
-                name: "Particle_Mesh".to_owned(),
-                vertex_buffer,
-                index_buffer,
-                num_elements: stardust::QUAD_INDICES.len() as u32,
-                material: 0,
-            }
-        };
+        let quad_mesh: model::Mesh = particle_single.get_mesh(&device);
 
         let particle_render_pipeline = {
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -576,7 +595,7 @@ impl State {
                 &layout,
                 config.format,
                 Some(texture::Texture::DEPTH_FORMAT),
-                &[stardust::QuadVertex::desc()],
+                &[stardust::QuadVertex::desc(),InstanceRaw::desc()],
                 shader,
                 cull_mode,
             )
@@ -608,6 +627,9 @@ impl State {
             debug_material,
             particle_render_pipeline,
             quad_mesh,
+            particle_single,
+            particle_instances,
+            particle_instance_buffer,
         }
     }
 
@@ -654,6 +676,8 @@ impl State {
     }
 
     fn update(&mut self, dt: std::time::Duration) {
+        self.particle_single.update(dt.as_secs_f32());
+
         self.camera_controller.update_camera(&mut self.camera, dt);
         self.camera_uniform
             .update_view_proj(&self.camera, &self.projection);
@@ -726,18 +750,20 @@ impl State {
                 &self.camera_bind_group,
                 &self.light_bind_group,
             );
+
+            // render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
             
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            
-            use crate::model::DrawModel;
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.draw_model_instanced_with_material(
-                &self.obj_model,
-                &self.debug_material,
-                0..self.instances.len() as u32,
-                &self.camera_bind_group,
-                &self.light_bind_group,
-            );
+            // use crate::model::DrawModel;
+            // render_pass.set_pipeline(&self.render_pipeline);
+            // render_pass.draw_model_instanced_with_material(
+            //     &self.obj_model,
+            //     &self.debug_material,
+            //     0..self.instances.len() as u32,
+            //     &self.camera_bind_group,
+            //     &self.light_bind_group,
+            // );
+
+            render_pass.set_vertex_buffer(1, self.particle_instance_buffer.slice(..));
             
             use crate::model::DrawParticle;
             render_pass.set_pipeline(&self.particle_render_pipeline);

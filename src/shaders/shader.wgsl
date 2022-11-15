@@ -121,7 +121,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32>
     return vec4<f32>(result, object_color.a);
 }
  
-/* 
+/*
 Something to note about @builtin(position), 
 in the fragment shader this value is in framebuffer space (opens new window). 
 
