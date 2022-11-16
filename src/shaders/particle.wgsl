@@ -41,16 +41,14 @@ fn vs_main(
 }
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> 
-{
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let center_pos: vec2<f32> = in.tex_coords - 0.5;
     let distance: f32 = length(center_pos);
 
     let inverse_distance: f32 = (1.0 - 2. * distance);
     let alpha_mask: f32 = step(0.01, inverse_distance);
 
-    if(alpha_mask < 0.3)
-    {
+    if alpha_mask < 0.3 {
         discard;
     }
 

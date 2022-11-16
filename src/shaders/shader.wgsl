@@ -74,7 +74,7 @@ fn vs_main(
     var v_out: VertexOutput;
     v_out.clip_position = camera.view_proj * world_position;
     v_out.tex_coords = v_input.tex_coords;
-    
+
     v_out.tangent_position = tangent_matrix * world_position.xyz;
     v_out.tangent_view_position = tangent_matrix * camera.view_pos.xyz;
     v_out.tangent_light_position = tangent_matrix * light.position;
@@ -93,10 +93,9 @@ var t_normal: texture_2d<f32>;
 var s_normal: sampler;
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> 
-{
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let object_color: vec4<f32> = textureSample(t_diffuse, s_diffuse, in.tex_coords);
-    let object_normal: vec4<f32> = textureSample(t_normal, s_normal, in.tex_coords );
+    let object_normal: vec4<f32> = textureSample(t_normal, s_normal, in.tex_coords);
 
     // Create the lighting vectors
     let tangent_normal = object_normal.xyz * 2.0 - 1.0;
@@ -120,14 +119,4 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32>
 
     return vec4<f32>(result, object_color.a);
 }
- 
-/*
-Something to note about @builtin(position), 
-in the fragment shader this value is in framebuffer space (opens new window). 
 
-This means that if your window is 800x600, the x and y of clip_position would be between 
-0-800 and 0-600 respectively with the y = 0 being the top of the screen. 
-
-This can be useful if you want to know pixel coordinates of a given fragment, 
-but if you want the position coordinates you'll have to pass them in separately.
-*/
