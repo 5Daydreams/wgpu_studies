@@ -32,11 +32,22 @@ struct VertexOutput {
 @vertex
 fn vs_main(
     model: VertexInput,
+    instance: InstanceInput,
 ) -> VertexOutput {
+
+    let model_matrix = mat4x4<f32>(
+        instance.model_matrix_0,
+        instance.model_matrix_1,
+        instance.model_matrix_2,
+        instance.model_matrix_3,
+    );
+
+    let world_position = model_matrix * vec4<f32>(model.position, 1.0);
+
     var out: VertexOutput;
     out.tex_coords = model.tex_coords;
     out.normals = model.normals;
-    out.clip_position = camera.view_proj * vec4<f32>(model.position, 1.0);
+    out.clip_position = camera.view_proj * world_position;
     return out;
 }
 
@@ -45,7 +56,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let center_pos: vec2<f32> = in.tex_coords - 0.5;
     let distance: f32 = length(center_pos);
 
-    let inverse_distance: f32 = (1.0 - 2. * distance);
+    let inverse_distance: f32 = (1.0 - 4. * distance);
     let alpha_mask: f32 = step(0.01, inverse_distance);
 
     if alpha_mask < 0.3 {

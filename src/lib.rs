@@ -51,6 +51,7 @@ impl CameraUniform {
 }
 
 const NUM_INSTANCES_PER_ROW: u32 = 10;
+const PARTICLE_COUNT: usize = 3;
 
 struct Instance {
     position: cgmath::Vector3<f32>,
@@ -253,7 +254,7 @@ impl State {
                         wgpu::Limits::default()
                     },
                 },
-                // Some(&std::path::Path::new("trace")), // Trace path
+                // Some(&std::path::Path::new("Device and Queue")), // Trace path
                 None, // Trace path
             )
             .await
@@ -540,8 +541,6 @@ impl State {
         use stardust::Particle;
         let particle_single: Particle = Particle::default();
 
-        const PARTICLE_COUNT: usize = 1;
-
         let particle_instances = (0..PARTICLE_COUNT)
             .flat_map(|z| {
                 // removing the "move" keyword means the closure will not own the data from the previous scope
@@ -570,7 +569,7 @@ impl State {
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Instance Buffer"),
                 contents: bytemuck::cast_slice(&particle_instance_data),
-                usage: wgpu::BufferUsages::VERTEX,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             });
 
         let quad_mesh: model::Mesh = particle_single.get_mesh(&device);
@@ -595,7 +594,7 @@ impl State {
                 &layout,
                 config.format,
                 Some(texture::Texture::DEPTH_FORMAT),
-                &[stardust::QuadVertex::desc(),InstanceRaw::desc()],
+                &[stardust::QuadVertex::desc(), InstanceRaw::desc()],
                 shader,
                 cull_mode,
             )
@@ -676,7 +675,27 @@ impl State {
     }
 
     fn update(&mut self, dt: std::time::Duration) {
-        self.particle_single.update(dt.as_secs_f32());
+        self.particle_single.update(0.6 * dt.as_secs_f32());
+
+        for index in 0..self.particle_instances.len() {
+            self.particle_instances[index].position = cgmath::Vector3 {
+                x: (index % 3) as f32,
+                y: self.particle_single.curr_position.y,
+                z: (index / 3) as f32,
+            };
+        }
+
+        let particle_instance_data = self
+            .particle_instances
+            .iter()
+            .map(Instance::to_raw)
+            .collect::<Vec<_>>();
+
+        self.queue.write_buffer(
+            &self.particle_instance_buffer,
+            0,
+            bytemuck::cast_slice(&particle_instance_data),
+        );
 
         self.camera_controller.update_camera(&mut self.camera, dt);
         self.camera_uniform
@@ -752,7 +771,7 @@ impl State {
             );
 
             // render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            
+
             // use crate::model::DrawModel;
             // render_pass.set_pipeline(&self.render_pipeline);
             // render_pass.draw_model_instanced_with_material(
@@ -764,10 +783,14 @@ impl State {
             // );
 
             render_pass.set_vertex_buffer(1, self.particle_instance_buffer.slice(..));
-            
+
             use crate::model::DrawParticle;
             render_pass.set_pipeline(&self.particle_render_pipeline);
-            render_pass.draw_particle(&self.quad_mesh, &self.camera_bind_group);
+            render_pass.draw_particle(
+                &self.quad_mesh,
+                &self.camera_bind_group,
+                self.particle_instances.len() as u32,
+            );
         }
 
         // submit will accept anything that implements IntoIter
