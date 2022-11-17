@@ -145,7 +145,7 @@ struct State {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     particle_model: model::Mesh,
-    particle_data: stardust::Particle,
+    particle_data: Vec<stardust::Particle>,
     particle_instances: Vec<Instance>,
     particle_instance_buffer: wgpu::Buffer,
     particle_render_pipeline: wgpu::RenderPipeline,
@@ -565,20 +565,17 @@ impl State {
         };
 
         use stardust::Particle;
-        let particle_data: Particle = Particle::new()
-            .velocity(Vector3::new(0., 7., 0.))
-            .force_constant(Vector3::new(0., -9.8, 0.))
-            .total_lifetime(10.)
-            .build();
-
-        let particle_instances = (0..PARTICLES_PER_ROW)
+        
+        #[rustfmt::skip]
+        let (particle_instances, particle_data): (Vec<Instance>, Vec<Particle>) = 
+        (0..PARTICLES_PER_ROW)
             .flat_map(|z| {
                 // removing the "move" keyword means the closure will not own the data from the previous scope
                 (0..PARTICLES_PER_ROW).map(move |x| {
                     let position = cgmath::Vector3 {
-                        x: 0.0 * x as f32,
-                        y: particle_data.position.y,
-                        z: 0.0 * z as f32,
+                        x: (x) as f32 - PARTICLES_PER_ROW as f32 / 2.,
+                        y: 0.0,
+                        z: (z) as f32 - PARTICLES_PER_ROW as f32 / 2.,
                     };
 
                     let rotation = cgmath::Quaternion::from_axis_angle(
@@ -586,14 +583,57 @@ impl State {
                         cgmath::Deg(0.0),
                     );
 
-                    Instance {
-                        position,
-                        rotation,
-                        transparency: particle_data.transparency,
-                    }
+                    let transparency = 1.0;
+
+                    (
+                        Instance {
+                            position,
+                            rotation,
+                            transparency: transparency,
+                        },
+                        Particle::builder()
+                            .position(position)
+                            .velocity(Vector3::new(0., 7., 0.))
+                            .force_constant(Vector3::new(0., -9.8, 0.))
+                            .total_lifetime(10.)
+                            .transparency(transparency)
+                            .build(),
+                    )
                 })
             })
-            .collect::<Vec<_>>();
+            .unzip();
+
+        // let mut particle_instances: Vec<Instance> = Vec::new();
+
+        // for z in 0..PARTICLES_PER_ROW {
+        //     for x in 0..PARTICLES_PER_ROW {
+        //         let position = cgmath::Vector3 {
+        //             x: (x) as f32 - PARTICLES_PER_ROW as f32 / 2.,
+        //             y: 0.0,
+        //             z: (z) as f32 - PARTICLES_PER_ROW as f32 / 2.,
+        //         };
+
+        //         let rotation = cgmath::Quaternion::from_axis_angle(
+        //             cgmath::Vector3::unit_z(),
+        //             cgmath::Deg(0.0),
+        //         );
+
+        //         let particle: Particle = Particle::new()
+        //             .position(position)
+        //             .velocity(Vector3::new(0., 7., 0.))
+        //             .force_constant(Vector3::new(0., -9.8, 0.))
+        //             .total_lifetime(10.)
+        //             .build();
+
+        //         particle_data.push(particle);
+
+        //         particle_instances.push(Instance {
+        //             position,
+        //             rotation,
+        //             transparency: particle_data[x + z].transparency,
+        //         });
+        //     }
+        // }
 
         let particle_instance_data = particle_instances
             .iter()
@@ -606,7 +646,7 @@ impl State {
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             });
 
-        let particle_model: model::Mesh = particle_data.get_mesh(&device);
+        let particle_model: model::Mesh = stardust::get_mesh(&device);
 
         let particle_render_pipeline = {
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -709,19 +749,24 @@ impl State {
     }
 
     fn update(&mut self, dt: std::time::Duration) {
-        self.particle_data.update(dt.as_secs_f32());
+        // Loop through all particles in a batch
+        for index in 0..self.particle_data.len() {
+            let curr_particle = &mut self.particle_data[index];
 
-        for index in 0..self.particle_instances.len() {
-            self.particle_instances[index].position = cgmath::Vector3 {
-                x: (index % PARTICLES_PER_ROW) as f32 - PARTICLES_PER_ROW as f32 / 2.,
-                y: self.particle_data.position.y,
-                z: (index / PARTICLES_PER_ROW) as f32 - PARTICLES_PER_ROW as f32 / 2.,
-            };
+            curr_particle.update(dt.as_secs_f32());
 
-            self.particle_instances[index].transparency = self.particle_data.transparency;
+            for index in 0..self.particle_instances.len() {
+                self.particle_instances[index].position = cgmath::Vector3 {
+                    x: (index % PARTICLES_PER_ROW) as f32 - PARTICLES_PER_ROW as f32 / 2.,
+                    y: curr_particle.position.y,
+                    z: (index / PARTICLES_PER_ROW) as f32 - PARTICLES_PER_ROW as f32 / 2.,
+                };
+
+                self.particle_instances[index].transparency = curr_particle.transparency;
+            }
         }
 
-        println!("{}", self.particle_data.transparency);
+        // println!("{}", self.particle_data.transparency);
 
         let particle_instance_data = self
             .particle_instances

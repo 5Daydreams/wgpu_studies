@@ -1,4 +1,5 @@
 use cgmath::{Vector3, Zero};
+use typed_builder::TypedBuilder;
 
 #[allow(dead_code)]
 pub const QUADRATIC_CENTERED: fn(f32) -> f32 = |x: f32| -4. * (x) * (x - 1.);
@@ -55,6 +56,34 @@ pub const QUAD_VERTS: &[QuadVertex] = &[
 
 pub const QUAD_INDICES: &[u32] = &[0, 1, 2, 1, 3, 2];
 
+pub fn get_mesh(device: &wgpu::Device) -> crate::model::Mesh {
+    let vertex_buffer = wgpu::util::DeviceExt::create_buffer_init(
+        device,
+        &wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(QUAD_VERTS),
+            usage: wgpu::BufferUsages::VERTEX,
+        },
+    );
+
+    let index_buffer = wgpu::util::DeviceExt::create_buffer_init(
+        device,
+        &wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(QUAD_INDICES),
+            usage: wgpu::BufferUsages::INDEX,
+        },
+    );
+
+    crate::model::Mesh {
+        name: "Particle_Mesh".to_owned(),
+        vertex_buffer,
+        index_buffer,
+        num_elements: QUAD_INDICES.len() as u32,
+        material: 0,
+    }
+}
+
 type Colour3 = Vector3<f32>;
 type Vec3 = Vector3<f32>;
 
@@ -72,103 +101,114 @@ impl AddAssign for Vec3 {
     }
 }
 
-pub struct ParticleBuilder {
-    pub position: Option<Vec3>,
-    pub velocity: Option<Vec3>,
-    pub size: Option<f32>,
-    pub total_lifetime: Option<f32>,
-    pub color: Option<Colour3>,
-    pub force_constant: Option<Vec3>,
-    pub force_curve: Option<[fn(f32) -> f32; 4]>,
-    pub transparency: Option<f32>,
-    pub transparency_curve: Option<fn(f32) -> f32>,
-}
+// pub struct ParticleBuilder {
+//     position: Option<Vec3>,
+//     velocity: Option<Vec3>,
+//     size: Option<f32>,
+//     total_lifetime: Option<f32>,
+//     color: Option<Colour3>,
+//     force_constant: Option<Vec3>,
+//     force_curve: Option<[fn(f32) -> f32; 4]>,
+//     transparency: Option<f32>,
+//     transparency_curve: Option<fn(f32) -> f32>,
+// }
 
-#[allow(dead_code)]
-impl ParticleBuilder {
-    pub fn position(&mut self, position: Vec3) -> &mut Self {
-        self.position = Some(position);
-        self
-    }
-    pub fn velocity(&mut self, velocity: Vec3) -> &mut Self {
-        self.velocity = Some(velocity);
-        self
-    }
-    pub fn size(&mut self, size: f32) -> &mut Self {
-        self.size = Some(size);
-        self
-    }
-    pub fn total_lifetime(&mut self, total_lifetime: f32) -> &mut Self {
-        self.total_lifetime = Some(total_lifetime);
-        self
-    }
-    pub fn color(&mut self, color: Colour3) -> &mut Self {
-        self.color = Some(color);
-        self
-    }
-    pub fn force_constant(&mut self, force_constant: Vec3) -> &mut Self {
-        self.force_constant = Some(force_constant);
-        self
-    }
-    pub fn force_curve(&mut self, force_curve: [fn(f32) -> f32; 4]) -> &mut Self {
-        self.force_curve = Some(force_curve);
-        self
-    }
-    pub fn transparency(&mut self, transparency: f32) -> &mut Self {
-        self.transparency = Some(transparency);
-        self
-    }
-    pub fn transparency_curve(&mut self, transparency_curve: fn(f32) -> f32) -> &mut Self {
-        self.transparency_curve = Some(transparency_curve);
-        self
-    }
+// #[allow(dead_code)]
+// impl ParticleBuilder {
+//     pub fn position(&mut self, position: Vec3) -> &mut Self {
+//         self.position = Some(position);
+//         self
+//     }
+//     pub fn velocity(&mut self, velocity: Vec3) -> &mut Self {
+//         self.velocity = Some(velocity);
+//         self
+//     }
+//     pub fn size(&mut self, size: f32) -> &mut Self {
+//         self.size = Some(size);
+//         self
+//     }
+//     pub fn total_lifetime(&mut self, total_lifetime: f32) -> &mut Self {
+//         self.total_lifetime = Some(total_lifetime);
+//         self
+//     }
+//     pub fn color(&mut self, color: Colour3) -> &mut Self {
+//         self.color = Some(color);
+//         self
+//     }
+//     pub fn force_constant(&mut self, force_constant: Vec3) -> &mut Self {
+//         self.force_constant = Some(force_constant);
+//         self
+//     }
+//     pub fn force_curve(&mut self, force_curve: [fn(f32) -> f32; 4]) -> &mut Self {
+//         self.force_curve = Some(force_curve);
+//         self
+//     }
+//     pub fn transparency(&mut self, transparency: f32) -> &mut Self {
+//         self.transparency = Some(transparency);
+//         self
+//     }
+//     pub fn transparency_curve(&mut self, transparency_curve: fn(f32) -> f32) -> &mut Self {
+//         self.transparency_curve = Some(transparency_curve);
+//         self
+//     }
 
-    pub fn build(&mut self) -> Particle {
-        Particle {
-            position: self.position.unwrap_or(Vec3::zero()),
-            velocity: self.velocity.unwrap_or(Vec3::zero()),
-            size: self.size.unwrap_or(1.0),
-            lifetime: self.total_lifetime.unwrap_or(1.0),
-            total_lifetime: self.total_lifetime.unwrap_or(1.0),
-            color: self.color.unwrap_or(Vec3::new(0.7, 0.7, 0.7)),
-            force_constant: self.force_constant.unwrap_or(Vec3::zero()),
-            force_curve: self
-                .force_curve
-                .unwrap_or([ZERO,ZERO,ZERO,ZERO,]),
-            transparency: self.transparency.unwrap_or(1.0),
-            transparency_curve: self.transparency_curve.unwrap_or(ONE_MINUS_T),
-        }
-    }
-}
+//     pub fn build(&mut self) -> Particle {
+//         Particle {
+//             position: self.position.unwrap_or(Vec3::zero()),
+//             velocity: self.velocity.unwrap_or(Vec3::zero()),
+//             size: self.size.unwrap_or(1.0),
+//             lifetime: self.total_lifetime.unwrap_or(1.0),
+//             total_lifetime: self.total_lifetime.unwrap_or(1.0),
+//             color: self.color.unwrap_or(Vec3::new(0.7, 0.7, 0.7)),
+//             force_constant: self.force_constant.unwrap_or(Vec3::zero()),
+//             force_curve: self
+//                 .force_curve
+//                 .unwrap_or([ZERO,ZERO,ZERO,ZERO,]),
+//             transparency: self.transparency.unwrap_or(1.0),
+//             transparency_curve: self.transparency_curve.unwrap_or(ONE_MINUS_T),
+//         }
+//     }
+// }
 
+#[derive(TypedBuilder)]
 pub struct Particle {
+    #[builder(default = Vector3::zero())]
     pub position: Vec3,
+    #[builder(default = Vector3::zero())]
     pub velocity: Vec3,
+    #[builder(default = Vector3::zero())]
     pub force_constant: Vec3,
+    #[builder(default = [ZERO; 4])]
     pub force_curve: [fn(f32) -> f32; 4],
+    #[builder(default)]
     pub size: f32,
+    #[builder(default = Vector3::zero())]
     pub color: Colour3,
+    #[builder(default = 1.0)]
     pub transparency: f32,
+    #[builder(default = ONE_MINUS_T)]
     pub transparency_curve: fn(f32) -> f32,
+    #[builder(default = 10.)]
     pub total_lifetime: f32,
+    #[builder(default = 10.)]
     pub lifetime: f32,
     // shape?
 }
 
 impl Particle {
-    pub fn new() -> ParticleBuilder {
-        ParticleBuilder {
-            position: None,
-            velocity: None,
-            size: None,
-            total_lifetime: None,
-            color: None,
-            force_constant: None,
-            force_curve: None,
-            transparency: None,
-            transparency_curve: None,
-        }
-    }
+    // pub fn new() -> ParticleBuilder {
+    //     ParticleBuilder {
+    //         position: None,
+    //         velocity: None,
+    //         size: None,
+    //         total_lifetime: None,
+    //         color: None,
+    //         force_constant: None,
+    //         force_curve: None,
+    //         transparency: None,
+    //         transparency_curve: None,
+    //     }
+    // }
     pub fn update(&mut self, dt: f32) {
         self.lifetime -= dt;
         self.update_curve_values();
@@ -182,37 +222,9 @@ impl Particle {
 
         self.transparency = (self.transparency_curve)(normalized_time);
     }
-
-    pub fn get_mesh(&self, device: &wgpu::Device) -> crate::model::Mesh {
-        let vertex_buffer = wgpu::util::DeviceExt::create_buffer_init(
-            device,
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(QUAD_VERTS),
-                usage: wgpu::BufferUsages::VERTEX,
-            },
-        );
-
-        let index_buffer = wgpu::util::DeviceExt::create_buffer_init(
-            device,
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Index Buffer"),
-                contents: bytemuck::cast_slice(QUAD_INDICES),
-                usage: wgpu::BufferUsages::INDEX,
-            },
-        );
-
-        crate::model::Mesh {
-            name: "Particle_Mesh".to_owned(),
-            vertex_buffer,
-            index_buffer,
-            num_elements: QUAD_INDICES.len() as u32,
-            material: 0,
-        }
-    }
 }
 
-// Stolen Code here: 
+// Stolen Code here:
 /*
 
 impl Draw<Transparent2d> for DrawEffects {

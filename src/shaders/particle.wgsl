@@ -66,7 +66,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         discard;
     }
 
-    let alpha = saturate(in.transparency);
+    let alpha = saturate(in.transparency * inverse_distance);
 
     let color = vec4<f32>(alpha_mask, alpha_mask, alpha_mask, alpha);
 
