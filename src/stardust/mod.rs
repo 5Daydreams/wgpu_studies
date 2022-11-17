@@ -1,5 +1,11 @@
 use cgmath::{Vector3, Zero};
-use typed_builder::TypedBuilder;
+
+#[allow(dead_code)]
+pub const QUADRATIC_CENTERED: fn(f32) -> f32 = |x: f32| -4. * (x) * (x - 1.);
+pub const ONE_MINUS_T: fn(f32) -> f32 = |x: f32| 1. - x;
+pub const ZERO: fn(f32) -> f32 = |_: f32| 0.;
+#[allow(dead_code)]
+pub const IDENTITY: fn(f32) -> f32 = |x: f32| x;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -49,45 +55,8 @@ pub const QUAD_VERTS: &[QuadVertex] = &[
 
 pub const QUAD_INDICES: &[u32] = &[0, 1, 2, 1, 3, 2];
 
-pub const QUADRATIC_CENTERED: fn(f32) -> f32 = |x: f32| -4. * (x) * (x - 1.);
-pub const LINEAR_ONE_TO_ZERO: fn(f32) -> f32 = |x: f32| 1. - x;
-
-pub struct Curve {
-    pub point_list: Vec<CurvePoint>,
-    pub closure: fn(f32) -> f32,
-}
-
 type Colour3 = Vector3<f32>;
 type Vec3 = Vector3<f32>;
-
-impl Curve {
-    pub fn vec3_curve(
-        start_value: Vec3,
-        end_value: Vec3,
-        t_value: f32,
-        curve_closure: Box<dyn Fn(f32) -> f32>,
-    ) -> Vec3 {
-        let lerp_value = (curve_closure)(t_value);
-
-        (1. - lerp_value) * start_value + (lerp_value) * end_value
-    }
-
-    pub fn float_curve(
-        start_value: f32,
-        end_value: f32,
-        t_value: f32,
-        curve_closure: Box<dyn Fn(f32) -> f32>,
-    ) -> f32 {
-        let lerp_value = (curve_closure)(t_value);
-
-        (1. - lerp_value) * start_value + (lerp_value) * end_value
-    }
-}
-
-pub struct CurvePoint {
-    pub key: f32,
-    pub value: f32,
-}
 
 trait AddAssign {
     fn add_assign(&mut self, other: Self);
@@ -103,67 +72,115 @@ impl AddAssign for Vec3 {
     }
 }
 
-#[derive(TypedBuilder)]
-pub struct Particle {
-    #[builder(default = Vec3::zero())]
-    pub curr_position: Vec3,
-    #[builder(default = Vec3::zero())]
-    pub curr_velocity: Vec3,
-    #[builder(default = Vec3::zero())]
-    pub curr_force: Vec3,
-    pub force_curve: Curve,
-    #[builder(default = 1.0)]
-    pub curr_size: f32,
-    #[builder(default = Colour3::zero())]
-    pub curr_color: Colour3,
-    #[builder(default = 1.0)]
-    pub curr_transparency: f32,
-    pub transparency_curve: Curve,
-    #[builder(default = 0.0)]
-    pub curr_lifetime: f32,
-    #[builder(default = 1.0)]
-    pub total_lifetime: f32,
-    // shape?
+pub struct ParticleBuilder {
+    pub position: Option<Vec3>,
+    pub velocity: Option<Vec3>,
+    pub size: Option<f32>,
+    pub total_lifetime: Option<f32>,
+    pub color: Option<Colour3>,
+    pub force_constant: Option<Vec3>,
+    pub force_curve: Option<[fn(f32) -> f32; 4]>,
+    pub transparency: Option<f32>,
+    pub transparency_curve: Option<fn(f32) -> f32>,
 }
 
-impl Default for Particle {
-    fn default() -> Self {
+#[allow(dead_code)]
+impl ParticleBuilder {
+    pub fn position(&mut self, position: Vec3) -> &mut Self {
+        self.position = Some(position);
+        self
+    }
+    pub fn velocity(&mut self, velocity: Vec3) -> &mut Self {
+        self.velocity = Some(velocity);
+        self
+    }
+    pub fn size(&mut self, size: f32) -> &mut Self {
+        self.size = Some(size);
+        self
+    }
+    pub fn total_lifetime(&mut self, total_lifetime: f32) -> &mut Self {
+        self.total_lifetime = Some(total_lifetime);
+        self
+    }
+    pub fn color(&mut self, color: Colour3) -> &mut Self {
+        self.color = Some(color);
+        self
+    }
+    pub fn force_constant(&mut self, force_constant: Vec3) -> &mut Self {
+        self.force_constant = Some(force_constant);
+        self
+    }
+    pub fn force_curve(&mut self, force_curve: [fn(f32) -> f32; 4]) -> &mut Self {
+        self.force_curve = Some(force_curve);
+        self
+    }
+    pub fn transparency(&mut self, transparency: f32) -> &mut Self {
+        self.transparency = Some(transparency);
+        self
+    }
+    pub fn transparency_curve(&mut self, transparency_curve: fn(f32) -> f32) -> &mut Self {
+        self.transparency_curve = Some(transparency_curve);
+        self
+    }
+
+    pub fn build(&mut self) -> Particle {
         Particle {
-            curr_position: Vec3::zero(),
-            curr_velocity: Vec3::zero(),
-            curr_force: Vec3::zero(),
-            force_curve: Curve {
-                point_list: Vec::new(),
-                closure: QUADRATIC_CENTERED,
-            },
-            curr_size: 0.,
-            curr_color: Vec3::new(1., 1., 1.),
-            curr_transparency: 0.,
-            transparency_curve: Curve {
-                point_list: Vec::new(),
-                closure: LINEAR_ONE_TO_ZERO,
-            },
-            curr_lifetime: 0.,
-            total_lifetime: 1.,
+            position: self.position.unwrap_or(Vec3::zero()),
+            velocity: self.velocity.unwrap_or(Vec3::zero()),
+            size: self.size.unwrap_or(1.0),
+            lifetime: self.total_lifetime.unwrap_or(1.0),
+            total_lifetime: self.total_lifetime.unwrap_or(1.0),
+            color: self.color.unwrap_or(Vec3::new(0.7, 0.7, 0.7)),
+            force_constant: self.force_constant.unwrap_or(Vec3::zero()),
+            force_curve: self
+                .force_curve
+                .unwrap_or([ZERO,ZERO,ZERO,ZERO,]),
+            transparency: self.transparency.unwrap_or(1.0),
+            transparency_curve: self.transparency_curve.unwrap_or(ONE_MINUS_T),
         }
     }
 }
 
-impl Particle {
-    pub fn update(&mut self, dt: f32) {
-        self.curr_lifetime += dt;
-        self.curr_velocity += self.curr_force * dt;
-        self.curr_position += self.curr_velocity * dt;
-        self.curr_force = Vec3::zero();
+pub struct Particle {
+    pub position: Vec3,
+    pub velocity: Vec3,
+    pub force_constant: Vec3,
+    pub force_curve: [fn(f32) -> f32; 4],
+    pub size: f32,
+    pub color: Colour3,
+    pub transparency: f32,
+    pub transparency_curve: fn(f32) -> f32,
+    pub total_lifetime: f32,
+    pub lifetime: f32,
+    // shape?
+}
 
+impl Particle {
+    pub fn new() -> ParticleBuilder {
+        ParticleBuilder {
+            position: None,
+            velocity: None,
+            size: None,
+            total_lifetime: None,
+            color: None,
+            force_constant: None,
+            force_curve: None,
+            transparency: None,
+            transparency_curve: None,
+        }
+    }
+    pub fn update(&mut self, dt: f32) {
+        self.lifetime -= dt;
         self.update_curve_values();
+
+        self.velocity += self.force_constant * dt;
+        self.position += self.velocity * dt;
     }
 
     fn update_curve_values(&mut self) {
-        let normalized_time = self.curr_lifetime / self.total_lifetime;
+        let normalized_time = (self.total_lifetime - self.lifetime) / self.total_lifetime;
 
-        self.curr_position.y = (self.force_curve.closure)(normalized_time);
-        self.curr_transparency = (self.transparency_curve.closure)(normalized_time);
+        self.transparency = (self.transparency_curve)(normalized_time);
     }
 
     pub fn get_mesh(&self, device: &wgpu::Device) -> crate::model::Mesh {
@@ -193,21 +210,9 @@ impl Particle {
             material: 0,
         }
     }
-
-    pub fn draw() {}
 }
 
-trait PhysicsPoint {
-    fn apply_force(&mut self, force: Vec3);
-}
-
-impl PhysicsPoint for Particle {
-    fn apply_force(&mut self, force: Vec3) {
-        self.curr_force += force;
-    }
-}
-
-// Stolen Code here:
+// Stolen Code here: 
 /*
 
 impl Draw<Transparent2d> for DrawEffects {
@@ -292,3 +297,40 @@ impl Draw<Transparent2d> for DrawEffects {
 }
 
 */
+
+// // Must refactor this - curves are meant to be points, which you can convert into a [f32 -> f32] closure
+// pub struct Curve {
+//     pub point_list: Vec<CurvePoint>,
+//     pub closure: fn(f32) -> f32,
+// }
+
+// pub struct CurvePoint {
+//     pub key: f32,
+//     pub value: f32,
+// }
+
+// impl Curve {
+//     pub fn vec3_curve(
+//         start_value: Vec3,
+//         end_value: Vec3,
+//         t_value: f32,
+//         curve_closure: Box<dyn Fn(f32) -> f32>,
+//     ) -> Vec3 {
+//         let lerp_value = (curve_closure)(t_value);
+
+//         (1. - lerp_value) * start_value + (lerp_value) * end_value
+//     }
+
+//     pub fn float_curve(
+//         start_value: f32,
+//         end_value: f32,
+//         t_value: f32,
+//         curve_closure: Box<dyn Fn(f32) -> f32>,
+//     ) -> f32 {
+//         let lerp_value = (curve_closure)(t_value);
+
+//         (1. - lerp_value) * start_value + (lerp_value) * end_value
+//     }
+// }
+
+// https://www.youtube.com/watch?v=syR0klfncCk
