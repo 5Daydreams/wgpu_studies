@@ -217,6 +217,8 @@ impl Particle {
         self.position += self.velocity * dt;
     }
 
+    // https://github.dev/gfx-rs/wgpu/tree/master/wgpu/examples/boids
+
     fn update_curve_values(&mut self) {
         let normalized_time = (self.total_lifetime - self.lifetime) / self.total_lifetime;
 

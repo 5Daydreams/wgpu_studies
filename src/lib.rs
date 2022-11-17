@@ -51,7 +51,7 @@ impl CameraUniform {
 }
 
 const NUM_INSTANCES_PER_ROW: u32 = 10;
-const PARTICLES_PER_ROW: usize = 10;
+const PARTICLES_PER_ROW: usize = 50;
 
 struct Instance {
     position: cgmath::Vector3<f32>,
