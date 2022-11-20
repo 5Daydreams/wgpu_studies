@@ -1,3 +1,4 @@
+use rand::Rng;
 // For web support
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -565,6 +566,7 @@ impl State {
         };
 
         use stardust::Particle;
+        let rng = rand::thread_rng();
         
         #[rustfmt::skip]
         let (particle_instances, particle_data): (Vec<Instance>, Vec<Particle>) = 
@@ -584,6 +586,7 @@ impl State {
                     );
 
                     let transparency = 1.0;
+                    let vel_y = rng.gen_range(2.0 .. 17.0);
 
                     (
                         Instance {
@@ -593,7 +596,7 @@ impl State {
                         },
                         Particle::builder()
                             .position(position)
-                            .velocity(Vector3::new(0., 7., 0.))
+                            .velocity(Vector3::new(0., vel_y, 0.))
                             .force_constant(Vector3::new(0., -9.8, 0.))
                             .total_lifetime(10.)
                             .transparency(transparency)

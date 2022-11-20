@@ -186,6 +186,8 @@ pub struct Particle {
     pub color: Colour3,
     #[builder(default = 1.0)]
     pub transparency: f32,
+    #[builder(default = 1.0)]
+    pub simulation_speed: f32,
     #[builder(default = ONE_MINUS_T)]
     pub transparency_curve: fn(f32) -> f32,
     #[builder(default = 10.)]
@@ -210,6 +212,7 @@ impl Particle {
     //     }
     // }
     pub fn update(&mut self, dt: f32) {
+        let dt = dt * self.simulation_speed;
         self.lifetime -= dt;
         self.update_curve_values();
 
