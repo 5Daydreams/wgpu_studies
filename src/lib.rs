@@ -338,7 +338,7 @@ impl State {
                 label: Some("texture_bind_group_layout"),
             });
 
-        let camera = camera::Camera::new((0.0, 1.0, 8.0), cgmath::Deg(-90.0), cgmath::Deg(-00.0));
+        let camera = camera::Camera::new((4.0, 1.0, 8.0), cgmath::Deg(-90.0), cgmath::Deg(-00.0));
         let projection =
             camera::Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
         let camera_controller = camera::CameraController::new(4.0, 0.4);
@@ -566,77 +566,43 @@ impl State {
         };
 
         use stardust::Particle;
-        let rng = rand::thread_rng();
-        
-        #[rustfmt::skip]
-        let (particle_instances, particle_data): (Vec<Instance>, Vec<Particle>) = 
-        (0..PARTICLES_PER_ROW)
-            .flat_map(|z| {
-                // removing the "move" keyword means the closure will not own the data from the previous scope
-                (0..PARTICLES_PER_ROW).map(move |x| {
-                    let position = cgmath::Vector3 {
-                        x: (x) as f32 - PARTICLES_PER_ROW as f32 / 2.,
-                        y: 0.0,
-                        z: (z) as f32 - PARTICLES_PER_ROW as f32 / 2.,
-                    };
+        let mut rng = rand::thread_rng();
 
-                    let rotation = cgmath::Quaternion::from_axis_angle(
-                        cgmath::Vector3::unit_z(),
-                        cgmath::Deg(0.0),
-                    );
+        let (particle_instances, particle_data): (Vec<Instance>, Vec<Particle>) = (0
+            ..PARTICLES_PER_ROW)
+            .flat_map(|z| (0..PARTICLES_PER_ROW).map(move |x| (x, z)))
+            .map(|(x, z)| {
+                let position = cgmath::Vector3 {
+                    x: (x) as f32 - PARTICLES_PER_ROW as f32 / 2.,
+                    y: 0.0,
+                    z: (z) as f32 - PARTICLES_PER_ROW as f32 / 2.,
+                };
 
-                    let transparency = 1.0;
-                    let vel_y = rng.gen_range(2.0 .. 17.0);
+                let rotation = cgmath::Quaternion::from_axis_angle(
+                    cgmath::Vector3::unit_z(),
+                    cgmath::Deg(0.0),
+                );
 
-                    (
-                        Instance {
-                            position,
-                            rotation,
-                            transparency: transparency,
-                        },
-                        Particle::builder()
-                            .position(position)
-                            .velocity(Vector3::new(0., vel_y, 0.))
-                            .force_constant(Vector3::new(0., -9.8, 0.))
-                            .total_lifetime(10.)
-                            .transparency(transparency)
-                            .build(),
-                    )
-                })
+                let transparency = 1.0;
+                let vel_y = rng.gen_range(2.0..17.0);
+
+                (
+                    Instance {
+                        position,
+                        rotation,
+                        transparency: transparency,
+                    },
+                    Particle::builder()
+                        .position(position)
+                        .simulation_speed(0.2)
+                        .velocity(Vector3::new(0., vel_y, 0.))
+                        .force_constant(Vector3::new(0., -9.8, 0.))
+                        .total_lifetime(10.)
+                        .transparency(transparency)
+                        .build(),
+                )
             })
             .unzip();
-
-        // let mut particle_instances: Vec<Instance> = Vec::new();
-
-        // for z in 0..PARTICLES_PER_ROW {
-        //     for x in 0..PARTICLES_PER_ROW {
-        //         let position = cgmath::Vector3 {
-        //             x: (x) as f32 - PARTICLES_PER_ROW as f32 / 2.,
-        //             y: 0.0,
-        //             z: (z) as f32 - PARTICLES_PER_ROW as f32 / 2.,
-        //         };
-
-        //         let rotation = cgmath::Quaternion::from_axis_angle(
-        //             cgmath::Vector3::unit_z(),
-        //             cgmath::Deg(0.0),
-        //         );
-
-        //         let particle: Particle = Particle::new()
-        //             .position(position)
-        //             .velocity(Vector3::new(0., 7., 0.))
-        //             .force_constant(Vector3::new(0., -9.8, 0.))
-        //             .total_lifetime(10.)
-        //             .build();
-
-        //         particle_data.push(particle);
-
-        //         particle_instances.push(Instance {
-        //             position,
-        //             rotation,
-        //             transparency: particle_data[x + z].transparency,
-        //         });
-        //     }
-        // }
 
         let particle_instance_data = particle_instances
             .iter()
@@ -758,15 +724,13 @@ impl State {
 
             curr_particle.update(dt.as_secs_f32());
 
-            for index in 0..self.particle_instances.len() {
-                self.particle_instances[index].position = cgmath::Vector3 {
-                    x: (index % PARTICLES_PER_ROW) as f32 - PARTICLES_PER_ROW as f32 / 2.,
-                    y: curr_particle.position.y,
-                    z: (index / PARTICLES_PER_ROW) as f32 - PARTICLES_PER_ROW as f32 / 2.,
-                };
+            self.particle_instances[index].position = cgmath::Vector3 {
+                x: (index % PARTICLES_PER_ROW) as f32 - PARTICLES_PER_ROW as f32 / 2.,
+                y: curr_particle.position.y,
+                z: (index / PARTICLES_PER_ROW) as f32 - PARTICLES_PER_ROW as f32 / 2.,
+            };
 
-                self.particle_instances[index].transparency = curr_particle.transparency;
-            }
+            self.particle_instances[index].transparency = curr_particle.transparency;
         }
 
         // println!("{}", self.particle_data.transparency);
