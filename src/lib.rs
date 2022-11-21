@@ -52,7 +52,7 @@ impl CameraUniform {
 }
 
 const NUM_INSTANCES_PER_ROW: u32 = 10;
-const PARTICLES_PER_ROW: usize = 50;
+const PARTICLES_PER_ROW: usize = 1000;
 
 struct Instance {
     position: cgmath::Vector3<f32>,
@@ -585,6 +585,7 @@ impl State {
 
                 let transparency = 1.0;
                 let vel_y = rng.gen_range(2.0..17.0);
+                let lifetime = rng.gen_range(0.5..2.0);
 
                 (
                     Instance {
@@ -597,7 +598,7 @@ impl State {
                         .simulation_speed(0.2)
                         .velocity(Vector3::new(0., vel_y, 0.))
                         .force_constant(Vector3::new(0., -9.8, 0.))
-                        .total_lifetime(10.)
+                        .total_lifetime(lifetime)
                         .transparency(transparency)
                         .build(),
                 )
@@ -719,20 +720,25 @@ impl State {
 
     fn update(&mut self, dt: std::time::Duration) {
         // Loop through all particles in a batch
-        for index in 0..self.particle_data.len() {
+        for index in (0..self.particle_data.len()).rev() {
             let curr_particle = &mut self.particle_data[index];
+            
+            /* !(curr_particle.update(dt.as_secs_f32())) */ 
+            if !(curr_particle.update(dt.as_secs_f32()))
+            {
+                // drop(&self.particle_data[index]);
+                // drop(&self.particle_instances[index]);
+                
+                // self.particle_data.remove(index);
+                // self.particle_instances.remove(index);
+                continue;
+            }
 
-            curr_particle.update(dt.as_secs_f32());
-
-            self.particle_instances[index].position = cgmath::Vector3 {
-                x: (index % PARTICLES_PER_ROW) as f32 - PARTICLES_PER_ROW as f32 / 2.,
-                y: curr_particle.position.y,
-                z: (index / PARTICLES_PER_ROW) as f32 - PARTICLES_PER_ROW as f32 / 2.,
-            };
-
+            self.particle_instances[index].position = curr_particle.position;
             self.particle_instances[index].transparency = curr_particle.transparency;
         }
 
+        println!("{}", self.particle_data.len());
         // println!("{}", self.particle_data.transparency);
 
         let particle_instance_data = self

@@ -192,38 +192,46 @@ pub struct Particle {
     pub transparency_curve: fn(f32) -> f32,
     #[builder(default = 10.)]
     pub total_lifetime: f32,
-    #[builder(default = 10.)]
+    #[builder(default = 0.)]
     pub lifetime: f32,
     // shape?
 }
 
+// pub fn new() -> ParticleBuilder {
+//     ParticleBuilder {
+//         position: None,
+//         velocity: None,
+//         size: None,
+//         total_lifetime: None,
+//         color: None,
+//         force_constant: None,
+//         force_curve: None,
+//         transparency: None,
+//         transparency_curve: None,
+//     }
+// }
 impl Particle {
-    // pub fn new() -> ParticleBuilder {
-    //     ParticleBuilder {
-    //         position: None,
-    //         velocity: None,
-    //         size: None,
-    //         total_lifetime: None,
-    //         color: None,
-    //         force_constant: None,
-    //         force_curve: None,
-    //         transparency: None,
-    //         transparency_curve: None,
-    //     }
-    // }
-    pub fn update(&mut self, dt: f32) {
+    pub fn update(&mut self, dt: f32) -> bool {
         let dt = dt * self.simulation_speed;
-        self.lifetime -= dt;
+        self.lifetime += dt;
+
+        if self.lifetime >= self.total_lifetime {
+            // not alive
+            return false;
+        }
+
         self.update_curve_values();
 
         self.velocity += self.force_constant * dt;
         self.position += self.velocity * dt;
+
+        true
     }
 
     // https://github.dev/gfx-rs/wgpu/tree/master/wgpu/examples/boids
 
     fn update_curve_values(&mut self) {
-        let normalized_time = (self.total_lifetime - self.lifetime) / self.total_lifetime;
+        let normalized_time = (self.lifetime) / self.total_lifetime;
 
         self.transparency = (self.transparency_curve)(normalized_time);
     }
