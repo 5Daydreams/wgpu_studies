@@ -97,9 +97,9 @@ type Vec3 = Vector3<f32>;
 #[derive(Copy, Clone, TypedBuilder)]
 pub struct Particle {
     #[builder(default = Vector3::zero())]
-    pub position: Vec3,
+    position: Vec3,
     #[builder(default = Vector3::zero())]
-    pub velocity: Vec3,
+    velocity: Vec3,
     #[builder(default = Vector3::zero())]
     pub force_constant: Vec3,
     #[builder(default = [ZERO; 4])]
@@ -111,7 +111,7 @@ pub struct Particle {
     #[builder(default = 1.0)]
     pub opacity: f32,
     #[builder(default = 1.0)]
-    pub simulation_speed: f32,
+    simulation_speed: f32,
     #[builder(default = ONE_MINUS_T)]
     pub opacity_curve: fn(f32) -> f32,
     #[builder(default = 10.)]
@@ -132,6 +132,10 @@ impl Lifetime for Particle {
 }
 
 impl Particle {
+    pub fn position(&self) -> Vec3 {
+        self.position
+    }
+
     pub fn update(&mut self, dt: f32) {
         if !(self.is_active()) {
             return;
@@ -156,7 +160,7 @@ impl Particle {
     }
 }
 
-struct Pool {
+pub struct Pool {
     total_count: usize,
     free_objects: VecDeque<Particle>,
 }
@@ -176,7 +180,7 @@ impl Pool {
     pub fn get_from_pool(&mut self) -> Result<Particle, &str> {
         self.free_objects
             .pop_front()
-            .ok_or_else(|| "Pool is empty, no object returned")
+            .ok_or("Pool is empty, no object returned")
 
         // // Same as below
         // match self.free_objects.pop_front()
@@ -186,10 +190,13 @@ impl Pool {
         // }
     }
 
-    pub fn add_to_pool(&mut self, particle: Particle) -> Result<(), &str> {
+    pub fn add_to_pool(&mut self, particle: &Particle) -> Result<(), &str> {
         match self.free_objects.len() {
             n if n > self.total_count => Err("Cannot add due to lack of space"),
-            _ => Ok(self.free_objects.push_back(particle)),
+            _ => {
+                self.free_objects.push_back(*particle);
+                Ok(())
+            }
         }
     }
 }

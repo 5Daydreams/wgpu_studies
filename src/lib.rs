@@ -19,7 +19,7 @@ use cgmath::{prelude::*, Vector3};
 use model::{Material, Vertex};
 use texture::Texture;
 
-use crate::stardust::{Lifetime, Particle};
+use crate::stardust::*;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -55,6 +55,7 @@ impl CameraUniform {
 
 const NUM_INSTANCES_PER_ROW: u32 = 10;
 const PARTICLES_PER_ROW: usize = 100;
+#[allow(dead_code)]
 const POOL_MAX: usize = 4_294_967_295; // equivalent to u32::MAX
 
 struct Instance {
@@ -149,7 +150,8 @@ struct State {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     particle_model: model::Mesh,
-    particle_data: Vec<stardust::Particle>,
+    particle_pool: Pool,
+    particle_data: Vec<Particle>,
     particle_instances: Vec<Instance>,
     particle_instance_buffer: wgpu::Buffer,
     particle_render_pipeline: wgpu::RenderPipeline,
@@ -570,6 +572,8 @@ impl State {
 
         let mut rng = rand::thread_rng();
 
+        let particle_pool = Pool::new(PARTICLES_PER_ROW * PARTICLES_PER_ROW * 1);
+
         let (particle_instances, particle_data): (Vec<Instance>, Vec<Particle>) = (0
             ..PARTICLES_PER_ROW)
             .flat_map(|z| (0..PARTICLES_PER_ROW).map(move |x| (x, z)))
@@ -589,11 +593,13 @@ impl State {
                 let vel_y = rng.gen_range(2.0..17.0);
                 let lifetime = rng.gen_range(0.5..2.0);
 
+                // let thing = particle_pool.get_from_pool();
+
                 (
                     Instance {
                         position,
                         rotation,
-                        opacity: opacity,
+                        opacity,
                     },
                     Particle::builder()
                         .position(position)
@@ -671,6 +677,7 @@ impl State {
             depth_texture,
             obj_material,
             particle_render_pipeline,
+            particle_pool,
             particle_model,
             particle_data,
             particle_instances,
@@ -721,11 +728,20 @@ impl State {
     }
 
     fn update(&mut self, dt: std::time::Duration) {
+        let mut pool_is_full = false;
         // Loop through all particles in a batch
         for index in (0..self.particle_data.len()).rev() {
             let curr_particle = &mut self.particle_data[index];
 
-            if !(curr_particle.is_active()) {
+            if !(curr_particle.is_active()) && !pool_is_full {
+                match self.particle_pool.add_to_pool(curr_particle) {
+                    Ok(_) => (),
+                    Err(err) => {
+                        println!("{}", err);
+                        pool_is_full = true;
+                        ()
+                    }
+                };
                 // drop(&self.particle_data[index]);
                 // drop(&self.particle_instances[index]);
 
@@ -736,7 +752,7 @@ impl State {
 
             curr_particle.update(dt.as_secs_f32());
 
-            self.particle_instances[index].position = curr_particle.position;
+            self.particle_instances[index].position = curr_particle.position();
             self.particle_instances[index].opacity = curr_particle.opacity;
         }
 
