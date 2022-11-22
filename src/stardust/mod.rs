@@ -1,6 +1,9 @@
 // Reference from Coding Train:
 // https://www.youtube.com/watch?v=syR0klfncCk
 
+// Cherno's more basic implementation - 
+// https://github.com/TheCherno/OneHourParticleSystem/blob/master/OpenGL-Sandbox/src/ParticleSystem.cpp
+
 use std::collections::VecDeque;
 
 use cgmath::{Vector3, Zero};
