@@ -19,6 +19,8 @@ use cgmath::{prelude::*, Vector3};
 use model::{Material, Vertex};
 use texture::Texture;
 
+use crate::stardust::{Lifetime, Particle};
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct LightUniform {
@@ -52,12 +54,13 @@ impl CameraUniform {
 }
 
 const NUM_INSTANCES_PER_ROW: u32 = 10;
-const PARTICLES_PER_ROW: usize = 1000;
+const PARTICLES_PER_ROW: usize = 100;
+const POOL_MAX: usize = 4_294_967_295; // equivalent to u32::MAX
 
 struct Instance {
     position: cgmath::Vector3<f32>,
     rotation: cgmath::Quaternion<f32>,
-    transparency: f32,
+    opacity: f32,
 }
 
 impl Instance {
@@ -67,7 +70,7 @@ impl Instance {
         InstanceRaw {
             model: model.into(),
             normal: cgmath::Matrix3::from(self.rotation).into(),
-            transparency: self.transparency,
+            opacity: self.opacity,
         }
     }
 }
@@ -77,7 +80,7 @@ impl Instance {
 struct InstanceRaw {
     model: [[f32; 4]; 4],
     normal: [[f32; 3]; 3],
-    transparency: f32,
+    opacity: f32,
 }
 
 impl model::Vertex for InstanceRaw {
@@ -414,7 +417,7 @@ impl State {
                         )
                     };
 
-                    let transparency = 1.;
+                    let opacity = 1.;
 
                     // let rotation = cgmath::Quaternion::from_axis_angle(
                     //     (0.0, 1.0, 0.0).into(),
@@ -424,7 +427,7 @@ impl State {
                     Instance {
                         position,
                         rotation,
-                        transparency,
+                        opacity,
                     }
                 })
             })
@@ -565,7 +568,6 @@ impl State {
             )
         };
 
-        use stardust::Particle;
         let mut rng = rand::thread_rng();
 
         let (particle_instances, particle_data): (Vec<Instance>, Vec<Particle>) = (0
@@ -583,7 +585,7 @@ impl State {
                     cgmath::Deg(0.0),
                 );
 
-                let transparency = 1.0;
+                let opacity = 1.0;
                 let vel_y = rng.gen_range(2.0..17.0);
                 let lifetime = rng.gen_range(0.5..2.0);
 
@@ -591,7 +593,7 @@ impl State {
                     Instance {
                         position,
                         rotation,
-                        transparency: transparency,
+                        opacity: opacity,
                     },
                     Particle::builder()
                         .position(position)
@@ -599,7 +601,7 @@ impl State {
                         .velocity(Vector3::new(0., vel_y, 0.))
                         .force_constant(Vector3::new(0., -9.8, 0.))
                         .total_lifetime(lifetime)
-                        .transparency(transparency)
+                        .opacity(opacity)
                         .build(),
                 )
             })
@@ -722,24 +724,23 @@ impl State {
         // Loop through all particles in a batch
         for index in (0..self.particle_data.len()).rev() {
             let curr_particle = &mut self.particle_data[index];
-            
-            /* !(curr_particle.update(dt.as_secs_f32())) */ 
-            if !(curr_particle.update(dt.as_secs_f32()))
-            {
+
+            if !(curr_particle.is_active()) {
                 // drop(&self.particle_data[index]);
                 // drop(&self.particle_instances[index]);
-                
+
                 // self.particle_data.remove(index);
                 // self.particle_instances.remove(index);
                 continue;
             }
 
+            curr_particle.update(dt.as_secs_f32());
+
             self.particle_instances[index].position = curr_particle.position;
-            self.particle_instances[index].transparency = curr_particle.transparency;
+            self.particle_instances[index].opacity = curr_particle.opacity;
         }
 
-        println!("{}", self.particle_data.len());
-        // println!("{}", self.particle_data.transparency);
+        println!("Active Particle count: {}", self.particle_data.len());
 
         let particle_instance_data = self
             .particle_instances
