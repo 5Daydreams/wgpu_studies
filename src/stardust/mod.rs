@@ -1,7 +1,7 @@
 // Reference from Coding Train:
 // https://www.youtube.com/watch?v=syR0klfncCk
 
-// Cherno's more basic implementation - 
+// Cherno's more basic implementation -
 // https://github.com/TheCherno/OneHourParticleSystem/blob/master/OpenGL-Sandbox/src/ParticleSystem.cpp
 
 use std::collections::VecDeque;
@@ -135,6 +135,10 @@ impl Lifetime for Particle {
 }
 
 impl Particle {
+    pub fn restart_lifetime(&mut self) {
+        self.curr_lifetime = 0.;
+    }
+
     pub fn position(&self) -> Vec3 {
         self.position
     }
@@ -163,18 +167,18 @@ impl Particle {
     }
 }
 
-pub struct Pool {
+pub struct ParticlePool {
     total_count: usize,
     free_objects: VecDeque<Particle>,
 }
 
-impl Pool {
-    pub fn new(total_count: usize) -> Pool {
+impl ParticlePool {
+    pub fn new(total_count: usize) -> ParticlePool {
         let free_objects: VecDeque<Particle> = (0..total_count)
             .map(|_| Particle::builder().build())
             .collect();
 
-        Pool {
+        ParticlePool {
             total_count,
             free_objects,
         }
@@ -184,13 +188,6 @@ impl Pool {
         self.free_objects
             .pop_front()
             .ok_or("Pool is empty, no object returned")
-
-        // // Same as below
-        // match self.free_objects.pop_front()
-        // {
-        //     None => Err("Pool is empty, no object returned"),
-        //     Some(value) => Ok(value),
-        // }
     }
 
     pub fn add_to_pool(&mut self, particle: &Particle) -> Result<(), &str> {
@@ -201,6 +198,65 @@ impl Pool {
                 Ok(())
             }
         }
+        // Do I really need to check for size?
+    }
+}
+
+pub struct ParticleEmitter {
+    pub particles: Vec<Particle>,
+}
+
+impl ParticleEmitter {
+    pub fn new(particles: Vec<Particle>) -> ParticleEmitter {
+        ParticleEmitter { particles }
+    }
+
+    fn get_inactive_particle(&mut self) -> Result<&mut Particle, &str> {
+        self.particles
+            .iter_mut()
+            .find(|a| !a.is_active())
+            .ok_or("no free particles available")
+    }
+
+    pub fn emit(&mut self) -> Result<(), &str> {
+        match self.get_inactive_particle() {
+            Err(error) => Err(error),
+            Ok(particle) => {
+                let mut rng = rand::thread_rng();
+                let x = rand::Rng::gen_range(&mut rng, -1.0..1.0);
+                let z = rand::Rng::gen_range(&mut rng, -1.0..1.0);
+                particle.position = Vec3::zero();
+                particle.velocity = Vec3::new(x, 5., z);
+                particle.restart_lifetime();
+                Ok(())
+            }
+        }
+    }
+}
+
+pub trait DrawParticle<'a> {
+    fn draw_particle(
+        &mut self,
+        mesh: &'a crate::model::Mesh,
+        camera_bind_group: &'a wgpu::BindGroup,
+        particle_count: u32,
+    );
+}
+
+impl<'a, 'b> DrawParticle<'b> for wgpu::RenderPass<'a>
+where
+    'b: 'a,
+{
+    fn draw_particle(
+        &mut self,
+        mesh: &'b crate::model::Mesh,
+        camera_bind_group: &'b wgpu::BindGroup,
+        particle_count: u32,
+    ) {
+        self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+        self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        self.set_bind_group(0, camera_bind_group, &[]);
+        self.draw_indexed(0..mesh.num_elements, 0, 0..particle_count);
     }
 }
 

@@ -320,28 +320,3 @@ where
     }
 }
 
-pub trait DrawParticle<'a> {
-    fn draw_particle(
-        &mut self,
-        mesh: &'a Mesh,
-        camera_bind_group: &'a wgpu::BindGroup,
-        particle_count: u32,
-    );
-}
-
-impl<'a, 'b> DrawParticle<'b> for wgpu::RenderPass<'a>
-where
-    'b: 'a,
-{
-    fn draw_particle(
-        &mut self,
-        mesh: &'b Mesh,
-        camera_bind_group: &'b wgpu::BindGroup,
-        particle_count: u32,
-    ) {
-        self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-        self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        self.set_bind_group(0, camera_bind_group, &[]);
-        self.draw_indexed(0..mesh.num_elements, 0, 0..particle_count);
-    }
-}

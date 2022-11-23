@@ -19,6 +19,7 @@ use cgmath::{prelude::*, Vector3};
 use model::{Material, Vertex};
 use texture::Texture;
 
+use crate::model::*;
 use crate::stardust::*;
 
 #[repr(C)]
@@ -150,7 +151,7 @@ struct State {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     particle_model: model::Mesh,
-    particle_pool: Pool,
+    particle_pool: ParticlePool,
     particle_data: Vec<Particle>,
     particle_instances: Vec<Instance>,
     particle_instance_buffer: wgpu::Buffer,
@@ -572,7 +573,7 @@ impl State {
 
         let mut rng = rand::thread_rng();
 
-        let particle_pool = Pool::new(PARTICLES_PER_ROW * PARTICLES_PER_ROW * 1);
+        let particle_pool = ParticlePool::new(PARTICLES_PER_ROW * PARTICLES_PER_ROW * 1);
 
         let (particle_instances, particle_data): (Vec<Instance>, Vec<Particle>) = (0
             ..PARTICLES_PER_ROW)
@@ -728,19 +729,15 @@ impl State {
     }
 
     fn update(&mut self, dt: std::time::Duration) {
-        let mut pool_is_full = false;
         // Loop through all particles in a batch
         for index in (0..self.particle_data.len()).rev() {
             let curr_particle = &mut self.particle_data[index];
 
-            if !(curr_particle.is_active()) && !pool_is_full {
-                match self.particle_pool.add_to_pool(curr_particle) {
-                    Ok(_) => (),
-                    Err(err) => {
-                        println!("{}", err);
-                        pool_is_full = true;
-                    }
-                };
+            if !(curr_particle.is_active()) 
+            {
+                todo!("\nWrap this into the particle emitter class\n");
+                curr_particle.position();
+                curr_particle.restart_lifetime();
                 // drop(&self.particle_data[index]);
                 // drop(&self.particle_instances[index]);
 
@@ -755,7 +752,14 @@ impl State {
             self.particle_instances[index].opacity = curr_particle.opacity;
         }
 
-        println!("Active Particle count: {}", self.particle_data.len());
+        println!(
+            "Active Particle count: {}",
+            self.particle_data
+                .iter()
+                .filter(|a| a.is_active())
+                .collect::<Vec<_>>()
+                .len()
+        );
 
         let particle_instance_data = self
             .particle_instances
@@ -834,7 +838,6 @@ impl State {
                 }),
             });
 
-            use crate::model::DrawLight;
             render_pass.set_pipeline(&self.light_render_pipeline);
             render_pass.draw_light_model(
                 &self.light_model,
@@ -844,7 +847,6 @@ impl State {
 
             render_pass.set_vertex_buffer(1, self.obj_instance_buffer.slice(..));
 
-            use crate::model::DrawModel;
             render_pass.set_pipeline(&self.obj_render_pipeline);
             render_pass.draw_model_instanced_with_material(
                 &self.obj_model,
@@ -856,7 +858,6 @@ impl State {
 
             render_pass.set_vertex_buffer(1, self.particle_instance_buffer.slice(..));
 
-            use crate::model::DrawParticle;
             render_pass.set_pipeline(&self.particle_render_pipeline);
             render_pass.draw_particle(
                 &self.particle_model,
