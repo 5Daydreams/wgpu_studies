@@ -739,7 +739,6 @@ impl State {
                     Err(err) => {
                         println!("{}", err);
                         pool_is_full = true;
-                        ()
                     }
                 };
                 // drop(&self.particle_data[index]);
