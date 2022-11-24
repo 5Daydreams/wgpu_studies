@@ -55,7 +55,7 @@ impl CameraUniform {
 }
 
 const NUM_INSTANCES_PER_ROW: u32 = 5;
-const PARTICLES_PER_ROW: usize = 150;
+const PARTICLES_PER_ROW: usize = 15;
 #[allow(dead_code)]
 const POOL_MAX: usize = 4_294_967_295; // equivalent to u32::MAX
 
@@ -227,7 +227,11 @@ fn create_render_pipeline(
         },
         depth_stencil: depth_format.map(|format| wgpu::DepthStencilState {
             format,
-            depth_write_enabled: true,
+            depth_write_enabled: match culling_face
+            {
+                Some(_) => true,
+                None => false,
+            },
             depth_compare: wgpu::CompareFunction::Less,
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),

@@ -225,7 +225,12 @@ impl ParticleEmitter {
                 let mut rng = rand::thread_rng();
                 let x = rand::Rng::gen_range(&mut rng, -2.0..2.0);
                 let z = rand::Rng::gen_range(&mut rng, -2.0..2.0);
-                let y = rand::Rng::gen_range(&mut rng, 7.0..10.0) - x.abs().sqrt() - z.abs().sqrt();
+                let dist = (x * x + z * z).sqrt();
+                let y = rand::Rng::gen_range(&mut rng, 7.0..10.0);
+
+                let angle = (dist / y).atan();
+
+                let y = y - dist * angle.cos();
                 particle.position = Vec3::zero();
                 particle.velocity = Vec3::new(x, y, z);
                 particle.total_lifetime = rand::Rng::gen_range(&mut rng, 0.5..1.5);
