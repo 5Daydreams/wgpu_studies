@@ -218,17 +218,17 @@ impl ParticleEmitter {
             .ok_or("no free particles available")
     }
 
-    pub fn emit(&mut self) -> Result<(), &str> {
+    pub fn emit(&mut self) {
         match self.get_inactive_particle() {
-            Err(error) => Err(error),
+            Err(error) => println!("{}", error),
             Ok(particle) => {
                 let mut rng = rand::thread_rng();
-                let x = rand::Rng::gen_range(&mut rng, -1.0..1.0);
-                let z = rand::Rng::gen_range(&mut rng, -1.0..1.0);
+                let x = rand::Rng::gen_range(&mut rng, -2.0..2.0);
+                let y = rand::Rng::gen_range(&mut rng, 3.0..7.0);
+                let z = rand::Rng::gen_range(&mut rng, -2.0..2.0);
                 particle.position = Vec3::zero();
-                particle.velocity = Vec3::new(x, 5., z);
+                particle.velocity = Vec3::new(x, y, z);
                 particle.restart_lifetime();
-                Ok(())
             }
         }
     }

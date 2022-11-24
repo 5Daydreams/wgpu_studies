@@ -54,8 +54,8 @@ impl CameraUniform {
     }
 }
 
-const NUM_INSTANCES_PER_ROW: u32 = 10;
-const PARTICLES_PER_ROW: usize = 100;
+const NUM_INSTANCES_PER_ROW: u32 = 5;
+const PARTICLES_PER_ROW: usize = 300;
 #[allow(dead_code)]
 const POOL_MAX: usize = 4_294_967_295; // equivalent to u32::MAX
 
@@ -151,8 +151,7 @@ struct State {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     particle_model: model::Mesh,
-    particle_pool: ParticlePool,
-    particle_data: Vec<Particle>,
+    particle_emitter: ParticleEmitter,
     particle_instances: Vec<Instance>,
     particle_instance_buffer: wgpu::Buffer,
     particle_render_pipeline: wgpu::RenderPipeline,
@@ -396,15 +395,15 @@ impl State {
             label: None,
         });
 
-        const SPACE_BETWEEN: f32 = 5.0;
+        const SPACE_BETWEEN: f32 = 4.0;
         let obj_instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|z| {
                 // removing the "move" keyword means the closure will not own the data from the previous scope
                 (0..NUM_INSTANCES_PER_ROW).map(move |x| {
                     let position = cgmath::Vector3 {
-                        x: SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0),
+                        x: SPACE_BETWEEN * (x as f32 - (NUM_INSTANCES_PER_ROW - 1) as f32 / 2.0),
                         y: 0.0,
-                        z: SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0),
+                        z: SPACE_BETWEEN * (z as f32 - (NUM_INSTANCES_PER_ROW - 1) as f32 / 2.0),
                     };
 
                     let rotation = if position.is_zero() {
@@ -573,8 +572,6 @@ impl State {
 
         let mut rng = rand::thread_rng();
 
-        let particle_pool = ParticlePool::new(PARTICLES_PER_ROW * PARTICLES_PER_ROW * 1);
-
         let (particle_instances, particle_data): (Vec<Instance>, Vec<Particle>) = (0
             ..PARTICLES_PER_ROW)
             .flat_map(|z| (0..PARTICLES_PER_ROW).map(move |x| (x, z)))
@@ -604,7 +601,7 @@ impl State {
                     },
                     Particle::builder()
                         .position(position)
-                        .simulation_speed(0.2)
+                        .simulation_speed(1.)
                         .velocity(Vector3::new(0., vel_y, 0.))
                         .force_constant(Vector3::new(0., -9.8, 0.))
                         .total_lifetime(lifetime)
@@ -613,6 +610,8 @@ impl State {
                 )
             })
             .unzip();
+
+        let particle_emitter = ParticleEmitter::new(particle_data);
 
         let particle_instance_data = particle_instances
             .iter()
@@ -678,9 +677,8 @@ impl State {
             depth_texture,
             obj_material,
             particle_render_pipeline,
-            particle_pool,
             particle_model,
-            particle_data,
+            particle_emitter,
             particle_instances,
             particle_instance_buffer,
         }
@@ -730,19 +728,11 @@ impl State {
 
     fn update(&mut self, dt: std::time::Duration) {
         // Loop through all particles in a batch
-        for index in (0..self.particle_data.len()).rev() {
-            let curr_particle = &mut self.particle_data[index];
+        for index in (0..self.particle_emitter.particles.len()).rev() {
+            let curr_particle = &mut self.particle_emitter.particles[index];
 
-            if !(curr_particle.is_active()) 
-            {
-                todo!("\nWrap this into the particle emitter class\n");
-                curr_particle.position();
-                curr_particle.restart_lifetime();
-                // drop(&self.particle_data[index]);
-                // drop(&self.particle_instances[index]);
-
-                // self.particle_data.remove(index);
-                // self.particle_instances.remove(index);
+            if !(curr_particle.is_active()) {
+                self.particle_emitter.emit();
                 continue;
             }
 
@@ -754,7 +744,8 @@ impl State {
 
         println!(
             "Active Particle count: {}",
-            self.particle_data
+            self.particle_emitter
+                .particles
                 .iter()
                 .filter(|a| a.is_active())
                 .collect::<Vec<_>>()
