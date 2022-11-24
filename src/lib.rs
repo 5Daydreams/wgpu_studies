@@ -55,7 +55,7 @@ impl CameraUniform {
 }
 
 const NUM_INSTANCES_PER_ROW: u32 = 5;
-const PARTICLES_PER_ROW: usize = 300;
+const PARTICLES_PER_ROW: usize = 150;
 #[allow(dead_code)]
 const POOL_MAX: usize = 4_294_967_295; // equivalent to u32::MAX
 
@@ -589,7 +589,7 @@ impl State {
 
                 let opacity = 1.0;
                 let vel_y = rng.gen_range(2.0..17.0);
-                let lifetime = rng.gen_range(0.5..2.0);
+                let lifetime = rng.gen_range(0.1..0.2);
 
                 // let thing = particle_pool.get_from_pool();
 

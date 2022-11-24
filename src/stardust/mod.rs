@@ -6,7 +6,7 @@
 
 use std::collections::VecDeque;
 
-use cgmath::{Vector3, Zero};
+use cgmath::{num_traits::Float, Vector3, Zero};
 use typed_builder::TypedBuilder;
 
 #[allow(dead_code)]
@@ -224,10 +224,11 @@ impl ParticleEmitter {
             Ok(particle) => {
                 let mut rng = rand::thread_rng();
                 let x = rand::Rng::gen_range(&mut rng, -2.0..2.0);
-                let y = rand::Rng::gen_range(&mut rng, 3.0..7.0);
                 let z = rand::Rng::gen_range(&mut rng, -2.0..2.0);
+                let y = rand::Rng::gen_range(&mut rng, 7.0..10.0) - x.abs().sqrt() - z.abs().sqrt();
                 particle.position = Vec3::zero();
                 particle.velocity = Vec3::new(x, y, z);
+                particle.total_lifetime = rand::Rng::gen_range(&mut rng, 0.5..1.5);
                 particle.restart_lifetime();
             }
         }
