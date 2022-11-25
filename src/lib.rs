@@ -643,7 +643,7 @@ impl State {
 
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Particle Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/particle.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/particles_bb.wgsl").into()),
             };
 
             let cull_mode = None;
