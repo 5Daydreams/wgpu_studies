@@ -38,6 +38,9 @@ struct LightUniform {
 struct CameraUniform {
     view_position: [f32; 4],
     view_proj: [[f32; 4]; 4],
+    pub aspect_ratio: f32,
+    // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
+    _padding: [u32; 3],
 }
 
 impl CameraUniform {
@@ -45,6 +48,8 @@ impl CameraUniform {
         Self {
             view_position: [0.0; 4],
             view_proj: cgmath::Matrix4::identity().into(),
+            aspect_ratio: 1.,
+            _padding: [0; 3],
         }
     }
 
@@ -227,8 +232,7 @@ fn create_render_pipeline(
         },
         depth_stencil: depth_format.map(|format| wgpu::DepthStencilState {
             format,
-            depth_write_enabled: match culling_face
-            {
+            depth_write_enabled: match culling_face {
                 Some(_) => true,
                 None => false,
             },
@@ -932,9 +936,11 @@ pub async fn run() {
                 } => *control_flow = ControlFlow::Exit,
                 WindowEvent::Resized(physical_size) => {
                     state.resize(*physical_size);
+                    state.camera_uniform.aspect_ratio = physical_size.width as f32 /physical_size.height as f32;
                 }
                 WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                     state.resize(**new_inner_size);
+                    state.camera_uniform.aspect_ratio = new_inner_size.width as f32 /new_inner_size.height as f32;
                 }
                 _ => {}
             },

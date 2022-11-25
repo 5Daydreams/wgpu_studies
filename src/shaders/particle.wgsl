@@ -1,6 +1,7 @@
 struct Camera {
     view_pos: vec4<f32>,
     view_proj: mat4x4<f32>,
+    aspect_ratio: f32,
 }
 @group(0) @binding(0)
 var<uniform> camera: Camera;
@@ -44,12 +45,26 @@ fn vs_main(
         instance.model_matrix_3,
     );
 
-    let world_position = model_matrix * vec4<f32>(model.position, 1.0);
-
     var out: VertexOutput;
     out.tex_coords = model.tex_coords;
     out.normals = model.normals;
-    out.clip_position = camera.view_proj * world_position;
+
+    // // fewer operations = faster, but fewer customization
+    // let world_position = model_matrix * vec4<f32>(model.position, 1.0);
+    // out.clip_position = camera.view_proj * world_position;
+
+    // testing for billboarding
+    let model_view_matrix = camera.view_proj * model_matrix;
+
+    // requires aspect ratio!!
+    let billboarded_matrix = mat4x4<f32>(
+        vec4<f32>(1.0/camera.aspect_ratio,0.,0.,0.),
+        vec4<f32>(0.,1.,0.,0.),
+        vec4<f32>(0.,0.,1.,0.),
+        vec4<f32>(model_view_matrix[3][0],model_view_matrix[3][1],model_view_matrix[3][2],model_view_matrix[3][3]),
+    );
+    out.clip_position = billboarded_matrix * vec4<f32>(model.position, 1.0);
+    
     out.transparency = instance.transparency;
     return out;
 }
