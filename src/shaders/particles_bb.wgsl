@@ -16,7 +16,8 @@ struct InstanceInput {
     @location(9) normal_matrix_0: vec3<f32>,
     @location(10) normal_matrix_1: vec3<f32>,
     @location(11) normal_matrix_2: vec3<f32>,
-    @location(12) transparency: f32,
+    @location(12) colour: vec4<f32>,
+    @location(13) size: vec3<f32>,
 };
 
 struct VertexInput {
@@ -29,7 +30,7 @@ struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coords: vec2<f32>,
     @location(1) normals: vec3<f32>,
-    @location(2) transparency: f32,
+    @location(2) colour: vec4<f32>,
 };
 
 @vertex
@@ -58,7 +59,7 @@ fn vs_main(
     out.clip_position = final_pos;
     out.tex_coords = model.tex_coords;
     out.normals = model.normals;
-    out.transparency = instance.transparency;
+    out.colour = instance.colour;
     return out;
 }
 
@@ -74,9 +75,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         discard;
     }
 
-    let alpha = saturate(in.transparency * inverse_distance);
+    let alpha = saturate(in.colour.w * inverse_distance);
 
-    let color = vec4<f32>(alpha_mask, alpha_mask, alpha_mask, alpha);
+    let color = vec4<f32>(in.colour.xyz, in.colour.w * alpha);
 
     return vec4<f32>(color);
 }

@@ -59,7 +59,7 @@ impl CameraUniform {
     }
 }
 
-const NUM_INSTANCES_PER_ROW: u32 = 5;
+const NUM_INSTANCES_PER_ROW: u32 = 1;
 const PARTICLES_PER_ROW: usize = 15;
 #[allow(dead_code)]
 const POOL_MAX: usize = 4_294_967_295; // equivalent to u32::MAX
@@ -157,7 +157,7 @@ struct State {
     size: winit::dpi::PhysicalSize<u32>,
     particle_model: model::Mesh,
     particle_emitter: ParticleEmitter,
-    particle_instances: Vec<Instance>,
+    particle_instances: Vec<stardust::ParticleInstance>,
     particle_instance_buffer: wgpu::Buffer,
     particle_render_pipeline: wgpu::RenderPipeline,
     camera_uniform: CameraUniform,
@@ -580,7 +580,7 @@ impl State {
 
         let mut rng = rand::thread_rng();
 
-        let (particle_instances, particle_data): (Vec<Instance>, Vec<Particle>) = (0
+        let (particle_instances, particle_data): (Vec<ParticleInstance>, Vec<Particle>) = (0
             ..PARTICLES_PER_ROW)
             .flat_map(|z| (0..PARTICLES_PER_ROW).map(move |x| (x, z)))
             .map(|(x, z)| {
@@ -596,16 +596,18 @@ impl State {
                 );
 
                 let opacity = 1.0;
-                let vel_y = rng.gen_range(2.0..17.0);
+                let vel_y = rng.gen_range(12.0..30.0);
                 let lifetime = rng.gen_range(0.1..0.2);
+                let colour = cgmath::Vector4::new(1.0, 1.0, 1.0, opacity);
 
                 // let thing = particle_pool.get_from_pool();
 
                 (
-                    Instance {
+                    ParticleInstance {
                         position,
                         rotation,
-                        opacity,
+                        colour,
+                        scale: cgmath::Vector3::new(1., 1., 1.),
                     },
                     Particle::builder()
                         .position(position)
@@ -613,7 +615,7 @@ impl State {
                         .velocity(Vector3::new(0., vel_y, 0.))
                         .force_constant(Vector3::new(0., -9.8, 0.))
                         .total_lifetime(lifetime)
-                        .opacity(opacity)
+                        .colour(colour)
                         .build(),
                 )
             })
@@ -623,11 +625,11 @@ impl State {
 
         let particle_instance_data = particle_instances
             .iter()
-            .map(Instance::to_raw)
+            .map(ParticleInstance::to_raw)
             .collect::<Vec<_>>();
         let particle_instance_buffer =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Instance Buffer"),
+                label: Some("Particle Instance Buffer"),
                 contents: bytemuck::cast_slice(&particle_instance_data),
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             });
@@ -654,7 +656,7 @@ impl State {
                 &layout,
                 config.format,
                 Some(texture::Texture::DEPTH_FORMAT),
-                &[stardust::QuadVertex::desc(), InstanceRaw::desc()],
+                &[stardust::QuadVertex::desc(), ParticleInstanceRaw::desc()],
                 shader,
                 cull_mode,
             )
@@ -747,23 +749,23 @@ impl State {
             curr_particle.update(dt.as_secs_f32());
 
             self.particle_instances[index].position = curr_particle.position();
-            self.particle_instances[index].opacity = curr_particle.opacity;
+            self.particle_instances[index].colour = curr_particle.colour;
         }
 
-        println!(
-            "Active Particle count: {}",
-            self.particle_emitter
-                .particles
-                .iter()
-                .filter(|a| a.is_active())
-                .collect::<Vec<_>>()
-                .len()
-        );
+        // println!(
+        //     "Active Particle count: {}",
+        //     self.particle_emitter
+        //         .particles
+        //         .iter()
+        //         .filter(|a| a.is_active())
+        //         .collect::<Vec<_>>()
+        //         .len()
+        // );
 
         let particle_instance_data = self
             .particle_instances
             .iter()
-            .map(Instance::to_raw)
+            .map(ParticleInstance::to_raw)
             .collect::<Vec<_>>();
 
         self.queue.write_buffer(
@@ -818,9 +820,9 @@ impl State {
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(wgpu::Color {
-                                r: 0.05,
-                                g: 0.12,
-                                b: 0.2,
+                                r: 0.01,
+                                g: 0.03,
+                                b: 0.09,
                                 a: 1.0,
                             }),
                             store: true,

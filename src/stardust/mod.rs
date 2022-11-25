@@ -4,8 +4,6 @@
 // Cherno's more basic implementation -
 // https://github.com/TheCherno/OneHourParticleSystem/blob/master/OpenGL-Sandbox/src/ParticleSystem.cpp
 
-use std::collections::VecDeque;
-
 use cgmath::{num_traits::Float, Vector3, Zero};
 use typed_builder::TypedBuilder;
 
@@ -94,7 +92,98 @@ pub fn get_mesh(device: &wgpu::Device) -> crate::model::Mesh {
     }
 }
 
-type Colour3 = Vector3<f32>;
+pub struct ParticleInstance {
+    pub position: cgmath::Vector3<f32>,
+    pub rotation: cgmath::Quaternion<f32>,
+    pub colour: cgmath::Vector4<f32>,
+    pub scale: cgmath::Vector3<f32>,
+}
+
+impl ParticleInstance {
+    pub fn to_raw(&self) -> ParticleInstanceRaw {
+        let model =
+            cgmath::Matrix4::from_translation(self.position) * cgmath::Matrix4::from(self.rotation);
+        ParticleInstanceRaw {
+            model: model.into(),
+            normal: cgmath::Matrix3::from(self.rotation).into(),
+            colour: self.colour.into(),
+            scale: self.scale.into(),
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct ParticleInstanceRaw {
+    model: [[f32; 4]; 4],
+    normal: [[f32; 3]; 3],
+    colour: [f32; 4],
+    scale: [f32; 3],
+}
+
+impl crate::model::Vertex for ParticleInstanceRaw {
+    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+        use std::mem;
+        wgpu::VertexBufferLayout {
+            array_stride: mem::size_of::<ParticleInstanceRaw>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Instance,
+            // Will be read on every vertex buffer,
+            // but will "change" only when iterating into a new instance
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
+                    shader_location: 7,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
+                    shader_location: 8,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                // Normals
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 16]>() as wgpu::BufferAddress,
+                    shader_location: 9,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 19]>() as wgpu::BufferAddress,
+                    shader_location: 10,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 22]>() as wgpu::BufferAddress,
+                    shader_location: 11,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                // Colour
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 25]>() as wgpu::BufferAddress,
+                    shader_location: 12,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                // Scale
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 29]>() as wgpu::BufferAddress,
+                    shader_location: 13,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+            ],
+        }
+    }
+}
+
+type Colour = cgmath::Vector4<f32>;
 type Vec3 = Vector3<f32>;
 
 #[derive(Copy, Clone, TypedBuilder)]
@@ -109,10 +198,8 @@ pub struct Particle {
     pub force_curve: [fn(f32) -> f32; 4],
     #[builder(default = 1.)]
     pub size: f32,
-    #[builder(default = Vector3::zero())]
-    pub color: Colour3,
-    #[builder(default = 1.0)]
-    pub opacity: f32,
+    #[builder(default = cgmath::Vector4::new(1.,1.,1.,1.))]
+    pub colour: Colour,
     #[builder(default = 1.0)]
     simulation_speed: f32,
     #[builder(default = ONE_MINUS_T)]
@@ -145,6 +232,7 @@ impl Particle {
 
     pub fn update(&mut self, dt: f32) {
         if !(self.is_active()) {
+            self.colour.w = 0.;
             return;
         }
 
@@ -163,42 +251,7 @@ impl Particle {
     fn update_curve_values(&mut self) {
         let normalized_time = (self.curr_lifetime) / self.total_lifetime;
 
-        self.opacity = (self.opacity_curve)(normalized_time);
-    }
-}
-
-pub struct ParticlePool {
-    total_count: usize,
-    free_objects: VecDeque<Particle>,
-}
-
-impl ParticlePool {
-    pub fn new(total_count: usize) -> ParticlePool {
-        let free_objects: VecDeque<Particle> = (0..total_count)
-            .map(|_| Particle::builder().build())
-            .collect();
-
-        ParticlePool {
-            total_count,
-            free_objects,
-        }
-    }
-
-    pub fn get_from_pool(&mut self) -> Result<Particle, &str> {
-        self.free_objects
-            .pop_front()
-            .ok_or("Pool is empty, no object returned")
-    }
-
-    pub fn add_to_pool(&mut self, particle: &Particle) -> Result<(), &str> {
-        match self.free_objects.len() {
-            n if n > self.total_count => Err("Cannot add due to lack of space"),
-            _ => {
-                self.free_objects.push_back(*particle);
-                Ok(())
-            }
-        }
-        // Do I really need to check for size?
+        self.colour.w = (self.opacity_curve)(normalized_time);
     }
 }
 
@@ -233,6 +286,12 @@ impl ParticleEmitter {
                 let y = y - dist * angle.cos();
                 particle.position = Vec3::zero();
                 particle.velocity = Vec3::new(x, y, z);
+
+                let r = rand::Rng::gen_range(&mut rng, 0.1..0.15);
+                let g = rand::Rng::gen_range(&mut rng, 0.00..0.05);
+                let b = rand::Rng::gen_range(&mut rng, 0.4..0.75);
+
+                particle.colour = Colour::new(r, g, b, 1.0);
                 particle.total_lifetime = rand::Rng::gen_range(&mut rng, 0.5..1.5);
                 particle.restart_lifetime();
             }
@@ -271,19 +330,19 @@ where
 /*
 // Stolen Code from Hanabi here:
 
-            impl Draw<Transparent2d> for DrawEffects {
-                fn draw<'w>(
-                    &mut self,
-                    world: &'w World,
-                    pass: &mut TrackedRenderPass<'w>,
-                    view: Entity,
-                    item: &Transparent2d,
-                ) {
-                    let (effects_meta, effect_bind_groups, pipeline_cache, views, effects) =
-                    self.params.get(world);
+impl Draw<Transparent2d> for DrawEffects {
+    fn draw<'w>(
+        &mut self,
+        world: &'w World,
+        pass: &mut TrackedRenderPass<'w>,
+        view: Entity,
+        item: &Transparent2d,
+    ) {
+        let (effects_meta, effect_bind_groups, pipeline_cache, views, effects) =
+        self.params.get(world);
 
-                    let view_uniform = views.get(view).unwrap();
-                    let effects_meta = effects_meta.into_inner();
+        let view_uniform = views.get(view).unwrap();
+        let effects_meta = effects_meta.into_inner();
                     let effect_bind_groups = effect_bind_groups.into_inner();
                     let effect_batch = effects.get(item.entity).unwrap();
 
@@ -315,90 +374,90 @@ where
                             effect_bind_groups
                             .render_particle_buffers
                             .get(&effect_batch.buffer_index)
-                .unwrap(),
-                &[dispatch_indirect_offset],
-            );
+                            .unwrap(),
+                            &[dispatch_indirect_offset],
+                        );
 
-            // Particle texture
-            if effect_batch
-            .layout_flags
-            .contains(LayoutFlags::PARTICLE_TEXTURE)
-            {
-                let image_handle = Handle::weak(effect_batch.image_handle_id);
-                if let Some(bind_group) = effect_bind_groups.images.get(&image_handle) {
-                    pass.set_bind_group(2, bind_group, &[]);
-                } else {
-                    // Texture not ready; skip this drawing for now
-                    trace!(
-                        "Particle texture bind group not available for batch buf={} slice={:?}. Skipping draw call.",
-                        effect_batch.buffer_index,
-                        effect_batch.slice
-                    );
-                    return; //continue;
+                        // Particle texture
+                        if effect_batch
+                        .layout_flags
+                        .contains(LayoutFlags::PARTICLE_TEXTURE)
+                        {
+                            let image_handle = Handle::weak(effect_batch.image_handle_id);
+                            if let Some(bind_group) = effect_bind_groups.images.get(&image_handle) {
+                                pass.set_bind_group(2, bind_group, &[]);
+                            } else {
+                                // Texture not ready; skip this drawing for now
+                                trace!(
+                                    "Particle texture bind group not available for batch buf={} slice={:?}. Skipping draw call.",
+                                    effect_batch.buffer_index,
+                                    effect_batch.slice
+                                );
+                                return; //continue;
+                            }
+                        }
+
+                        let vertex_count = effects_meta.vertices.len() as u32;
+                        let particle_count = effect_batch.slice.end - effect_batch.slice.start;
+
+                        trace!(
+                            "Draw {} particles with {} vertices per particle for batch from buffer #{}.",
+                            particle_count,
+                            vertex_count,
+                            effect_batch.buffer_index
+                        );
+                        pass.draw(0..vertex_count, 0..particle_count);
+                    }
                 }
             }
 
-            let vertex_count = effects_meta.vertices.len() as u32;
-            let particle_count = effect_batch.slice.end - effect_batch.slice.start;
 
-            trace!(
-                "Draw {} particles with {} vertices per particle for batch from buffer #{}.",
-                particle_count,
-                vertex_count,
-                effect_batch.buffer_index
-            );
-            pass.draw(0..vertex_count, 0..particle_count);
-        }
-    }
-}
-
-
-*/
+            */
 
 /*
-// Must refactor this - curves are meant to be points, which you can convert into a [f32 -> f32] closure
+            // Must refactor this - curves are meant to be points, which you can convert into a [f32 -> f32] closure
 
-pub struct Curve {
-    pub point_list: Vec<CurvePoint>,
-    pub closure: fn(f32) -> f32,
-}
+            pub struct Curve {
+                pub point_list: Vec<CurvePoint>,
+                pub closure: fn(f32) -> f32,
+            }
 
-pub struct CurvePoint {
-    pub key: f32,
-    pub value: f32,
-}
+            pub struct CurvePoint {
+                pub key: f32,
+                pub value: f32,
+            }
 
-impl Curve {
-    pub fn vec3_curve(
-        start_value: Vec3,
-        end_value: Vec3,
-        t_value: f32,
-        curve_closure: Box<dyn Fn(f32) -> f32>,
-    ) -> Vec3 {
-        let lerp_value = (curve_closure)(t_value);
+            impl Curve {
+                pub fn vec3_curve(
+                    start_value: Vec3,
+                    end_value: Vec3,
+                    t_value: f32,
+                    curve_closure: Box<dyn Fn(f32) -> f32>,
+                ) -> Vec3 {
+                    let lerp_value = (curve_closure)(t_value);
 
-        (1. - lerp_value) * start_value + (lerp_value) * end_value
-    }
+                    (1. - lerp_value) * start_value + (lerp_value) * end_value
+                }
 
-    pub fn float_curve(
-        start_value: f32,
-        end_value: f32,
-        t_value: f32,
-        curve_closure: Box<dyn Fn(f32) -> f32>,
-    ) -> f32 {
-        let lerp_value = (curve_closure)(t_value);
+                pub fn float_curve(
+                    start_value: f32,
+                    end_value: f32,
+                    t_value: f32,
+                    curve_closure: Box<dyn Fn(f32) -> f32>,
+                ) -> f32 {
+                    let lerp_value = (curve_closure)(t_value);
 
-        (1. - lerp_value) * start_value + (lerp_value) * end_value
-    }
-}
+                    (1. - lerp_value) * start_value + (lerp_value) * end_value
+                }
+            }
 
-trait AddAssign {
-    fn add_assign(&mut self, other: Self);
-}
+            trait AddAssign {
+                fn add_assign(&mut self, other: Self);
+            }
 
-impl AddAssign for Vec3 {
-    fn add_assign(&mut self, other: Self) {
-        *self = Self {
+            impl AddAssign for Vec3 {
+                fn add_assign(&mut self, other: Self) {
+                    *self = Self {
             x: self.x + other.x,
             y: self.y + other.y,
             z: self.z + other.z,
@@ -492,3 +551,38 @@ impl ParticleBuilder {
 }
 
 */
+
+// pub struct ParticlePool {
+//     total_count: usize,
+//     free_objects: VecDeque<Particle>,
+// }
+
+// impl ParticlePool {
+//     pub fn new(total_count: usize) -> ParticlePool {
+//         let free_objects: VecDeque<Particle> = (0..total_count)
+//             .map(|_| Particle::builder().build())
+//             .collect();
+
+//         ParticlePool {
+//             total_count,
+//             free_objects,
+//         }
+//     }
+
+//     pub fn get_from_pool(&mut self) -> Result<Particle, &str> {
+//         self.free_objects
+//             .pop_front()
+//             .ok_or("Pool is empty, no object returned")
+//     }
+
+//     pub fn add_to_pool(&mut self, particle: &Particle) -> Result<(), &str> {
+//         match self.free_objects.len() {
+//             n if n > self.total_count => Err("Cannot add due to lack of space"),
+//             _ => {
+//                 self.free_objects.push_back(*particle);
+//                 Ok(())
+//             }
+//         }
+//         // Do I really need to check for size?
+//     }
+// }
