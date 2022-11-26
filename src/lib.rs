@@ -60,7 +60,7 @@ impl CameraUniform {
 }
 
 const NUM_INSTANCES_PER_ROW: u32 = 1;
-const PARTICLES_PER_ROW: usize = 15;
+const PARTICLES_PER_ROW: usize = 20;
 #[allow(dead_code)]
 const POOL_MAX: usize = 4_294_967_295; // equivalent to u32::MAX
 
@@ -820,9 +820,9 @@ impl State {
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(wgpu::Color {
-                                r: 0.01,
-                                g: 0.03,
-                                b: 0.09,
+                                r: 0.008,
+                                g: 0.012,
+                                b: 0.075,
                                 a: 1.0,
                             }),
                             store: true,
@@ -839,12 +839,12 @@ impl State {
                 }),
             });
 
-            render_pass.set_pipeline(&self.light_render_pipeline);
-            render_pass.draw_light_model(
-                &self.light_model,
-                &self.camera_bind_group,
-                &self.light_bind_group,
-            );
+            // render_pass.set_pipeline(&self.light_render_pipeline);
+            // render_pass.draw_light_model(
+            //     &self.light_model,
+            //     &self.camera_bind_group,
+            //     &self.light_bind_group,
+            // );
 
             render_pass.set_vertex_buffer(1, self.obj_instance_buffer.slice(..));
 

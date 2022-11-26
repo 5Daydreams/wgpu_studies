@@ -276,8 +276,8 @@ impl ParticleEmitter {
             Err(error) => println!("{}", error),
             Ok(particle) => {
                 let mut rng = rand::thread_rng();
-                let x = rand::Rng::gen_range(&mut rng, -2.0..2.0);
-                let z = rand::Rng::gen_range(&mut rng, -2.0..2.0);
+                let x = rand::Rng::gen_range(&mut rng, -1.5..1.5);
+                let z = rand::Rng::gen_range(&mut rng, -1.5..1.5);
                 let dist = (x * x + z * z).sqrt();
                 let y = rand::Rng::gen_range(&mut rng, 7.0..10.0);
 
@@ -287,12 +287,18 @@ impl ParticleEmitter {
                 particle.position = Vec3::zero();
                 particle.velocity = Vec3::new(x, y, z);
 
-                let r = rand::Rng::gen_range(&mut rng, 0.1..0.15);
-                let g = rand::Rng::gen_range(&mut rng, 0.00..0.05);
-                let b = rand::Rng::gen_range(&mut rng, 0.4..0.75);
+                // // purple range
+                // let r = rand::Rng::gen_range(&mut rng, 0.1..0.15);
+                // let g = rand::Rng::gen_range(&mut rng, 0.00..0.05);
+                // let b = rand::Rng::gen_range(&mut rng, 0.4..0.75);
+
+                // gold range
+                let r = rand::Rng::gen_range(&mut rng, 0.9..0.99);
+                let g = rand::Rng::gen_range(&mut rng, 0.65..0.80);
+                let b = rand::Rng::gen_range(&mut rng, 0.05..0.5);
 
                 particle.colour = Colour::new(r, g, b, 1.0);
-                particle.total_lifetime = rand::Rng::gen_range(&mut rng, 0.5..1.5);
+                particle.total_lifetime = rand::Rng::gen_range(&mut rng, 0.7..1.2);
                 particle.restart_lifetime();
             }
         }
