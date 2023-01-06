@@ -1,2 +1,2 @@
 # wgpu_studies
-A rendering adventure where the coder falls in love with rust and wgpu - I have achieved a simple particle spawner handled through CPU
+A rendering adventure where I discovered the wonders of rust and wgpu - so far I have made a simple particle spawner handled through CPU
